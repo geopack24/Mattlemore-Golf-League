@@ -252,8 +252,7 @@ returns table (name text) language sql stable security definer set search_path =
 $$;
 
 -- Who has picked for a tournament. Golfer names are NULL until lock time.
--- (drop first: these return types grew a 
-ote column in Sep 2026)
+-- (drop first: these return types grew a note column in Sep 2026)
 drop function if exists tournament_board(int);
 drop function if exists season_picks(int);
 drop function if exists my_picks(text, text, int);
