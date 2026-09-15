@@ -48,6 +48,13 @@ create table if not exists settings (
   value text not null
 );
 
+create table if not exists champions (           -- The White Stag Club: one league champion per season
+  season int primary key,
+  owner  text not null,                           -- free text: past winners may not be current owners
+  note   text,                                    -- e.g. "Rode Scheffler to a Masters payday"
+  points numeric
+);
+
 -- ---------- Lock everything down ---------------------------------------
 -- Browsers only hold the public "anon" key. No table is readable or writable
 -- directly; every access goes through the functions below, which enforce
@@ -58,6 +65,7 @@ alter table tournaments enable row level security;
 alter table picks       enable row level security;
 alter table golfers     enable row level security;
 alter table settings    enable row level security;
+alter table champions   enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
 
@@ -154,6 +162,13 @@ language sql stable security definer set search_path = public, extensions as $$
    where o.active
    group by o.name
    order by 2 desc, 1;
+$$;
+
+-- The White Stag Club: past champions, newest first.
+create or replace function list_champions()
+returns table (season int, owner text, note text, points numeric)
+language sql stable security definer set search_path = public, extensions as $$
+  select season, owner, note, points from champions order by season desc;
 $$;
 
 -- All revealed picks for the season (for the history grid).
@@ -275,6 +290,24 @@ begin
   delete from tournaments where id = p_tournament_id;
 end $$;
 
+create or replace function admin_set_champion(p_admin_pin text, p_season int, p_owner text,
+                                              p_note text default null, p_points numeric default null)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  if trim(coalesce(p_owner, '')) = '' then raise exception 'Who won?'; end if;
+  insert into champions (season, owner, note, points)
+  values (p_season, trim(p_owner), nullif(trim(p_note), ''), p_points)
+  on conflict (season) do update set owner = excluded.owner, note = excluded.note, points = excluded.points;
+end $$;
+
+create or replace function admin_delete_champion(p_admin_pin text, p_season int)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  delete from champions where season = p_season;
+end $$;
+
 create or replace function admin_set_admin_pin(p_admin_pin text, p_new_pin text)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
@@ -301,7 +334,8 @@ grant execute on function
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),
   admin_set_winnings(text, int, text, numeric),
   admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric),
-  admin_delete_tournament(text, int), admin_set_admin_pin(text, text), admin_set_season(text, int)
+  admin_delete_tournament(text, int), admin_set_admin_pin(text, text), admin_set_season(text, int),
+  list_champions(), admin_set_champion(text, int, text, text, numeric), admin_delete_champion(text, int)
 to anon, authenticated;
 
 -- =====================================================================
