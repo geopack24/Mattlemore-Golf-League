@@ -48,6 +48,24 @@ create table if not exists settings (
   value text not null
 );
 
+create table if not exists cards (               -- commissioner's TCG-style enchantments, dealt to owners
+  id              serial primary key,
+  owner_id        int  not null references owners(id) on delete cascade,
+  name            text not null,
+  kind            text not null default 'Enchantment',      -- printed type line
+  effect          text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom')),
+  params          jsonb not null default '{}',              -- multiply {"x":2} · flat {"amount":500000} · steal {"pct":25}
+  rules           text,
+  flavor          text,
+  image           text,                                     -- data URL (resized in the browser) or https URL
+  status          text not null default 'held' check (status in ('held','played','revoked')),
+  tournament_id   int references tournaments(id) on delete set null,   -- where it was played
+  target_owner_id int references owners(id) on delete set null,        -- duel/steal/swap opponent
+  dealt_at        timestamptz not null default now(),
+  played_at       timestamptz
+);
+create unique index if not exists cards_one_in_play_per_week on cards (owner_id, tournament_id) where status = 'played';
+
 create table if not exists champions (           -- The White Stag Club: one league champion per season
   season int primary key,
   owner  text not null,                           -- free text: past winners may not be current owners
@@ -66,6 +84,7 @@ alter table picks       enable row level security;
 alter table golfers     enable row level security;
 alter table settings    enable row level security;
 alter table champions   enable row level security;
+alter table cards       enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
 
@@ -100,6 +119,110 @@ returns int language sql stable security definer set search_path = public, exten
                   (select max(season) from tournaments), extract(year from now())::int);
 $$;
 
+-- ---------- Scoring engine -------------------------------------------------
+-- Points for one tournament = winnings × multiplier, then every card in play
+-- that week applied in the order it was played. All views read points from
+-- here so cards change the standings automatically.
+
+create or replace function _oname(p_id int) returns text
+language sql stable security definer set search_path = public, extensions as $$
+  select name from owners where id = p_id;
+$$;
+
+create or replace function _note(n jsonb, k text, s text) returns jsonb
+language sql immutable as $$
+  select n || jsonb_build_object(k, case when n ? k then (n->>k) || ' · ' || s else s end);
+$$;
+
+create or replace function scored_points(p_tournament_id int)
+returns table (o_id int, raw numeric, base_pts numeric, pts numeric, note text)
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare
+  v_t  tournaments%rowtype;
+  w    jsonb := '{}';    -- owner -> raw winnings
+  b    jsonb := '{}';    -- owner -> base points (winnings × multiplier)
+  m    jsonb := '{}';    -- owner -> points after cards
+  n    jsonb := '{}';    -- owner -> explanation
+  sh   int[] := '{}';    -- owners holding a shield this week
+  c    record;
+  a    text; tg text;
+  wa numeric; wb numeric; x numeric; s numeric; tmp numeric;
+  k text; v jsonb;
+begin
+  select * into v_t from tournaments tt where tt.id = p_tournament_id;
+  if v_t.id is null then return; end if;
+
+  for c in select p.owner_id as o, p.winnings as wn from picks p where p.tournament_id = p_tournament_id loop
+    w := w || jsonb_build_object(c.o::text, c.wn);
+    b := b || jsonb_build_object(c.o::text, c.wn * v_t.multiplier);
+  end loop;
+  m := b;
+
+  select coalesce(array_agg(cd.owner_id), '{}') into sh from cards cd
+   where cd.tournament_id = p_tournament_id and cd.status = 'played' and cd.effect = 'shield';
+
+  for c in select * from cards cd where cd.tournament_id = p_tournament_id and cd.status = 'played' order by cd.played_at, cd.id loop
+    a := c.owner_id::text; tg := c.target_owner_id::text;
+    if not (m ? a) then w := w || jsonb_build_object(a, 0); b := b || jsonb_build_object(a, 0); m := m || jsonb_build_object(a, 0); end if;
+    if c.target_owner_id is not null and not (m ? tg) then
+      w := w || jsonb_build_object(tg, 0); b := b || jsonb_build_object(tg, 0); m := m || jsonb_build_object(tg, 0);
+    end if;
+
+    if c.effect in ('duel','steal','swap') and c.target_owner_id = any(sh) then
+      n := _note(n, a, c.name || ': fizzled — ' || _oname(c.target_owner_id) || ' was shielded');
+      n := _note(n, tg, 'Shield blocked ' || _oname(c.owner_id) || '''s ' || c.name);
+      continue;
+    end if;
+
+    case c.effect
+      when 'multiply' then
+        x := coalesce((c.params->>'x')::numeric, 2);
+        m := jsonb_set(m, array[a], to_jsonb((m->>a)::numeric * x));
+        n := _note(n, a, c.name || ': ×' || x);
+      when 'flat' then
+        x := coalesce((c.params->>'amount')::numeric, 0);
+        m := jsonb_set(m, array[a], to_jsonb((m->>a)::numeric + x));
+        n := _note(n, a, c.name || ': ' || case when x >= 0 then '+' else '−' end || '$' || to_char(abs(x), 'FM999,999,999,990'));
+      when 'duel' then
+        wa := (w->>a)::numeric; wb := (w->>tg)::numeric;
+        if wa > wb then
+          m := jsonb_set(m, array[a], to_jsonb((b->>a)::numeric * 2));
+          m := jsonb_set(m, array[tg], to_jsonb(0));
+          n := _note(n, a,  c.name || ': beat ' || _oname(c.target_owner_id) || ' (×2)');
+          n := _note(n, tg, c.name || ': lost to ' || _oname(c.owner_id) || ' (0)');
+        elsif wb > wa then
+          m := jsonb_set(m, array[tg], to_jsonb((b->>tg)::numeric * 2));
+          m := jsonb_set(m, array[a], to_jsonb(0));
+          n := _note(n, a,  c.name || ': lost to ' || _oname(c.target_owner_id) || ' (0)');
+          n := _note(n, tg, c.name || ': beat ' || _oname(c.owner_id) || ' (×2)');
+        else
+          n := _note(n, a, c.name || ': tied ' || _oname(c.target_owner_id) || ' — no effect');
+        end if;
+      when 'steal' then
+        x := coalesce((c.params->>'pct')::numeric, 25);
+        s := round((m->>tg)::numeric * x / 100);
+        m := jsonb_set(m, array[tg], to_jsonb((m->>tg)::numeric - s));
+        m := jsonb_set(m, array[a],  to_jsonb((m->>a)::numeric + s));
+        n := _note(n, a,  c.name || ': took ' || x || '% from ' || _oname(c.target_owner_id));
+        n := _note(n, tg, c.name || ': ' || _oname(c.owner_id) || ' took ' || x || '%');
+      when 'swap' then
+        tmp := (m->>a)::numeric;
+        m := jsonb_set(m, array[a],  to_jsonb((m->>tg)::numeric));
+        m := jsonb_set(m, array[tg], to_jsonb(tmp));
+        n := _note(n, a,  c.name || ': swapped points with ' || _oname(c.target_owner_id));
+        n := _note(n, tg, c.name || ': ' || _oname(c.owner_id) || ' swapped points with you');
+      when 'shield'   then n := _note(n, a, c.name || ': shielded');
+      when 'mulligan' then n := _note(n, a, c.name || ': mulligan');
+      else                 n := _note(n, a, c.name || ' (commissioner applies)');
+    end case;
+  end loop;
+
+  for k, v in select * from jsonb_each(m) loop
+    o_id := k::int; raw := (w->>k)::numeric; base_pts := (b->>k)::numeric; pts := (m->>k)::numeric; note := n->>k;
+    return next;
+  end loop;
+end $$;
+
 -- ---------- Public read functions ---------------------------------------
 
 create or replace function list_owners()
@@ -129,21 +252,41 @@ returns table (name text) language sql stable security definer set search_path =
 $$;
 
 -- Who has picked for a tournament. Golfer names are NULL until lock time.
+-- (drop first: these return types grew a 
+ote column in Sep 2026)
+drop function if exists tournament_board(int);
+drop function if exists season_picks(int);
+drop function if exists my_picks(text, text, int);
 create or replace function tournament_board(p_tournament_id int)
 returns table (owner text, has_picked boolean, golfer text, winnings numeric,
-               points numeric, submitted_at timestamptz)
+               points numeric, submitted_at timestamptz, note text)
 language sql stable security definer set search_path = public, extensions as $$
   select o.name,
          p.id is not null,
          case when now() >= t.lock_at then p.golfer end,
          case when now() >= t.lock_at then p.winnings end,
-         case when now() >= t.lock_at then p.winnings * t.multiplier end,
-         p.submitted_at
+         case when now() >= t.lock_at then coalesce(sp.pts, p.winnings * t.multiplier) end,
+         p.submitted_at,
+         case when now() >= t.lock_at then sp.note end
     from owners o
     cross join tournaments t
     left join picks p on p.owner_id = o.id and p.tournament_id = t.id
+    left join scored_points(t.id) sp on sp.o_id = o.id
    where t.id = p_tournament_id and o.active
    order by o.name;
+$$;
+
+-- Cards in play for a tournament — revealed at lock time, like picks.
+create or replace function tournament_cards(p_tournament_id int)
+returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text)
+language sql stable security definer set search_path = public, extensions as $$
+  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name
+    from cards c
+    join owners o on o.id = c.owner_id
+    join tournaments t on t.id = c.tournament_id
+    left join owners tg on tg.id = c.target_owner_id
+   where c.tournament_id = p_tournament_id and c.status = 'played' and now() >= t.lock_at
+   order by c.played_at;
 $$;
 
 create or replace function standings(p_season int default null)
@@ -151,15 +294,16 @@ returns table (owner text, points numeric, picks_made int, wins int, best_week n
 language sql stable security definer set search_path = public, extensions as $$
   with s as (select coalesce(p_season, current_season()) as season)
   select o.name,
-         coalesce(sum(case when now() >= t.lock_at then p.winnings * t.multiplier end), 0),
-         count(t.id)::int,                       -- t is null for other seasons' picks
+         coalesce(sum(case when now() >= t.lock_at then coalesce(sp.pts, p.winnings * t.multiplier) end), 0),
+         count(p.id)::int,
          count(*) filter (where now() >= t.lock_at and p.winnings > 0
                           and p.winnings = (select max(p2.winnings) from picks p2 where p2.tournament_id = t.id))::int,
-         coalesce(max(case when now() >= t.lock_at then p.winnings * t.multiplier end), 0)
+         coalesce(max(case when now() >= t.lock_at then coalesce(sp.pts, p.winnings * t.multiplier) end), 0)
     from owners o
-    left join picks p on p.owner_id = o.id
-    left join tournaments t on t.id = p.tournament_id and t.season = (select season from s)
-   where o.active
+    cross join tournaments t
+    left join picks p on p.owner_id = o.id and p.tournament_id = t.id
+    left join scored_points(t.id) sp on sp.o_id = o.id
+   where o.active and t.season = (select season from s)
    group by o.name
    order by 2 desc, 1;
 $$;
@@ -173,12 +317,13 @@ $$;
 
 -- All revealed picks for the season (for the history grid).
 create or replace function season_picks(p_season int default null)
-returns table (tournament_id int, owner text, golfer text, winnings numeric, points numeric)
+returns table (tournament_id int, owner text, golfer text, winnings numeric, points numeric, note text)
 language sql stable security definer set search_path = public, extensions as $$
-  select t.id, o.name, p.golfer, p.winnings, p.winnings * t.multiplier
+  select t.id, o.name, p.golfer, p.winnings, coalesce(sp.pts, p.winnings * t.multiplier), sp.note
     from picks p
     join tournaments t on t.id = p.tournament_id
     join owners o on o.id = p.owner_id
+    left join scored_points(t.id) sp on sp.o_id = o.id
    where t.season = coalesce(p_season, current_season()) and now() >= t.lock_at;
 $$;
 
@@ -186,16 +331,83 @@ $$;
 
 create or replace function my_picks(p_owner text, p_pin text, p_season int default null)
 returns table (tournament_id int, tournament text, start_date date, golfer text,
-               winnings numeric, points numeric, locked boolean, submitted_at timestamptz)
+               winnings numeric, points numeric, locked boolean, submitted_at timestamptz, note text)
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
-    select t.id, t.name, t.start_date, p.golfer, p.winnings, p.winnings * t.multiplier,
-           now() >= t.lock_at, p.submitted_at
+    select t.id, t.name, t.start_date, p.golfer, p.winnings, coalesce(sp.pts, p.winnings * t.multiplier),
+           now() >= t.lock_at, p.submitted_at, case when now() >= t.lock_at then sp.note end
       from picks p join tournaments t on t.id = p.tournament_id
+      left join scored_points(t.id) sp on sp.o_id = p.owner_id
      where p.owner_id = v_id and t.season = coalesce(p_season, current_season())
      order by t.sort_order;
+end $$;
+
+-- ---------- Cards: the owner's hand -------------------------------------
+
+create or replace function my_cards(p_owner text, p_pin text)
+returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
+               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz)
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare v_id int := _owner_id(p_owner, p_pin);
+begin
+  return query
+    select c.id, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.status,
+           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at
+      from cards c
+      left join tournaments t on t.id = c.tournament_id
+      left join owners tg on tg.id = c.target_owner_id
+     where c.owner_id = v_id and c.status <> 'revoked'
+     order by (c.status = 'held') desc, c.dealt_at, c.id;
+end $$;
+
+create or replace function play_card(p_owner text, p_pin text, p_card_id int, p_tournament_id int, p_target text default null)
+returns json language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_owner  int := _owner_id(p_owner, p_pin);
+  v_c      cards%rowtype;
+  v_t      tournaments%rowtype;
+  v_target int;
+begin
+  select * into v_c from cards cd where cd.id = p_card_id and cd.owner_id = v_owner;
+  if v_c.id is null then raise exception 'That card is not in your hand'; end if;
+  if v_c.status <> 'held' then raise exception 'That card is already in play'; end if;
+  select * into v_t from tournaments tt where tt.id = p_tournament_id;
+  if v_t.id is null then raise exception 'Unknown tournament'; end if;
+  if now() >= v_t.lock_at then raise exception 'Too late — the % has already started', v_t.name; end if;
+  if v_c.effect in ('duel','steal','swap') then
+    select o.id into v_target from owners o where lower(o.name) = lower(trim(coalesce(p_target, ''))) and o.active;
+    if v_target is null then raise exception 'Choose an opponent for this card'; end if;
+    if v_target = v_owner then raise exception 'You cannot target yourself'; end if;
+  end if;
+  if exists (select 1 from cards cd where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played') then
+    raise exception 'You already have a card in play for the %', v_t.name;
+  end if;
+  update cards set status = 'played', tournament_id = p_tournament_id, target_owner_id = v_target, played_at = now()
+   where id = p_card_id;
+  return json_build_object('ok', true, 'card', v_c.name, 'tournament', v_t.name, 'target', _oname(v_target));
+end $$;
+
+create or replace function unplay_card(p_owner text, p_pin text, p_card_id int)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+declare
+  v_owner int := _owner_id(p_owner, p_pin);
+  v_c     cards%rowtype;
+  v_t     tournaments%rowtype;
+begin
+  select * into v_c from cards cd where cd.id = p_card_id and cd.owner_id = v_owner;
+  if v_c.id is null or v_c.status <> 'played' then raise exception 'That card is not in play'; end if;
+  select * into v_t from tournaments tt where tt.id = v_c.tournament_id;
+  if now() >= v_t.lock_at then raise exception 'The % has started — the card stays played', v_t.name; end if;
+  if v_c.effect = 'mulligan' and exists (
+       select 1 from picks p
+         join picks p2 on p2.owner_id = p.owner_id and p2.golfer_key = p.golfer_key and p2.tournament_id <> p.tournament_id
+         join tournaments t2 on t2.id = p2.tournament_id and t2.season = v_t.season
+        where p.owner_id = v_owner and p.tournament_id = v_c.tournament_id) then
+    raise exception 'Your pick for the % reuses a golfer — change it before taking back the mulligan', v_t.name;
+  end if;
+  update cards set status = 'held', tournament_id = null, target_owner_id = null, played_at = null where id = p_card_id;
 end $$;
 
 create or replace function submit_pick(p_owner text, p_pin text, p_tournament_id int, p_golfer text)
@@ -220,13 +432,17 @@ begin
   end if;
 
   -- No mulligans: a golfer may be used once per season (changing your pick
-  -- for THIS tournament before lock is fine).
-  select t.name, p.golfer into v_used, v_golfer_prev
-    from picks p join tournaments t on t.id = p.tournament_id
-   where p.owner_id = v_owner and p.golfer_key = v_key
-     and t.season = v_t.season and p.tournament_id <> p_tournament_id;
-  if v_used is not null then
-    raise exception 'No mulligans: you already used % at the %', v_golfer_prev, v_used;
+  -- for THIS tournament before lock is fine) — unless a Mulligan card is in
+  -- play for this tournament.
+  if not exists (select 1 from cards cd where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id
+                    and cd.status = 'played' and cd.effect = 'mulligan') then
+    select t.name, p.golfer into v_used, v_golfer_prev
+      from picks p join tournaments t on t.id = p.tournament_id
+     where p.owner_id = v_owner and p.golfer_key = v_key
+       and t.season = v_t.season and p.tournament_id <> p_tournament_id;
+    if v_used is not null then
+      raise exception 'No mulligans: you already used % at the %', v_golfer_prev, v_used;
+    end if;
   end if;
 
   select golfer into v_prev from picks where owner_id = v_owner and tournament_id = p_tournament_id;
@@ -308,6 +524,46 @@ begin
   delete from champions where season = p_season;
 end $$;
 
+create or replace function admin_deal_card(p_admin_pin text, p_owner text, p_name text, p_kind text, p_effect text,
+                                           p_params jsonb default '{}', p_rules text default null,
+                                           p_flavor text default null, p_image text default null)
+returns int language plpgsql security definer set search_path = public, extensions as $$
+declare v_owner int; v_id int;
+begin
+  perform _check_admin(p_admin_pin);
+  select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
+  if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
+  if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
+  insert into cards (owner_id, name, kind, effect, params, rules, flavor, image)
+  values (v_owner, trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect,
+          coalesce(p_params, '{}'), nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''))
+  returning id into v_id;
+  return v_id;
+end $$;
+
+create or replace function admin_list_cards(p_admin_pin text)
+returns table (id int, owner text, name text, kind text, effect text, params jsonb, status text,
+               tournament text, target text, dealt_at timestamptz, has_image boolean)
+language plpgsql stable security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  return query
+    select c.id, o.name, c.name, c.kind, c.effect, c.params, c.status, t.name, tg.name, c.dealt_at, c.image is not null
+      from cards c
+      join owners o on o.id = c.owner_id
+      left join tournaments t on t.id = c.tournament_id
+      left join owners tg on tg.id = c.target_owner_id
+     order by c.dealt_at desc, c.id desc;
+end $$;
+
+create or replace function admin_revoke_card(p_admin_pin text, p_card_id int)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  update cards set status = 'revoked' where id = p_card_id;
+  if not found then raise exception 'No such card'; end if;
+end $$;
+
 create or replace function admin_set_admin_pin(p_admin_pin text, p_new_pin text)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
@@ -328,8 +584,11 @@ end $$;
 revoke all on all functions in schema public from public, anon, authenticated;
 revoke execute on function _owner_id(text, text) from public, anon, authenticated;
 revoke execute on function _check_admin(text) from public, anon, authenticated;
+revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
 grant execute on function
-  current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int),
+  current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
+  my_cards(text, text), play_card(text, text, int, int, text), unplay_card(text, text, int),
+  admin_deal_card(text, text, text, text, text, jsonb, text, text, text), admin_list_cards(text), admin_revoke_card(text, int),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),
   admin_set_winnings(text, int, text, numeric),

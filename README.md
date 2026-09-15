@@ -81,6 +81,17 @@ The Zurich Classic (two-man teams) is scored like any other week: pick one golfe
 **Purses are last year's numbers** until the Tour publishes 2027 figures. They only show on the board;
 scoring always uses the winnings you enter. Fix any of them — or add/remove a week — under Commissioner → Schedule.
 
+## Cards (the commissioner's enchantments)
+
+Commissioner tab → **Deal a card**: pick the owner, name the card, choose its **effect** (multiply my points,
+bonus/penalty, duel, steal %, swap, shield, mulligan, or custom), add the rules and flavor text and the artwork.
+Only that owner can see the card, under **My Cards** (name + PIN). They play it on an upcoming week — and pick an
+opponent if the card needs one — and it stays secret until that tournament locks. Then it shows up on **This Week**
+under "Cards in play" and the points are recalculated automatically; every affected score carries a note saying what
+happened (e.g. "Ryder Die: beat Mike (×2)"). One card in play per owner per week. Shields cancel duels, steals and
+swaps aimed at their holder. A mulligan lets that owner reuse a golfer that week. "Custom" cards have no automatic
+math — apply them by editing the winnings.
+
 ## Next season
 
 Commissioner tab → **Schedule**: add each tournament with its start date, lock time, purse and multiplier

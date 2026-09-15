@@ -129,6 +129,26 @@
   .champ.latest{border-color:rgba(255,255,255,.55);box-shadow:0 0 30px -8px rgba(255,255,255,.45)}
   .champ.latest .yr{color:#fff}
   .empty{color:var(--muted);font-style:italic;padding:8px 0}
+  /* ---- cards (TCG frames) ---- */
+  .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
+  .hand.mini{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .tcg{background:linear-gradient(180deg,#dcc47c,#b4923b);border-radius:14px;padding:9px;color:#1d1408;box-shadow:0 18px 40px -18px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.35);position:relative}
+  .tcg::before{content:"";position:absolute;inset:4px;border:1px solid rgba(60,40,10,.35);border-radius:11px;pointer-events:none}
+  .tcg-title{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.5px;background:#efe3bd;border:1px solid rgba(60,40,10,.4);border-radius:8px;padding:6px 10px}
+  .tcg-art{margin-top:7px;aspect-ratio:4/3;border:1px solid rgba(60,40,10,.4);border-radius:6px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#3a2566,#150c28 70%);display:flex;align-items:center;justify-content:center}
+  .tcg-art img{width:100%;height:100%;object-fit:cover;display:block}
+  .tcg-art .crest{width:55%;height:55%;opacity:.9}
+  .tcg-type{margin-top:7px;font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.6px;background:#efe3bd;border:1px solid rgba(60,40,10,.4);border-radius:8px;padding:5px 10px;display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .tcg-type span{font-family:"Cormorant Garamond",serif;font-weight:600;font-size:13px;letter-spacing:0;color:#4a3a14;text-align:right}
+  .tcg-text{margin-top:7px;background:#f3ead0;border:1px solid rgba(60,40,10,.4);border-radius:8px;padding:10px 12px;min-height:96px;font-size:15px;line-height:1.35}
+  .tcg-text p{margin:0 0 8px}
+  .tcg-text p:last-child{margin:0}
+  .tcg-text .fl{font-style:italic;color:#4a3a14}
+  .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
+  .tcg-foot label{color:#c9b8e8}
+  .tcg-foot .f{flex:1 1 140px}
+  .tcg.played{filter:saturate(.85)}
+  td small.note{display:block;font-size:12px;color:var(--leaf);font-style:italic;font-weight:500;white-space:normal;max-width:260px}
   footer{text-align:center;color:var(--muted);font-size:14px;font-style:italic;padding:10px 20px 34px;letter-spacing:.3px}
   footer b{font-family:var(--display);font-style:normal;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;font-size:12px}
 </style>
@@ -136,24 +156,33 @@
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="stag" viewBox="0 0 200 200">
-    <circle cx="100" cy="112" r="78" fill="none" stroke="#e7c368" stroke-opacity=".55" stroke-width="1.5"/>
-    <circle cx="100" cy="112" r="84" fill="none" stroke="#8b5cf6" stroke-opacity=".35" stroke-width="1"/>
-    <g fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round">
-      <g id="antler">
-        <path d="M86 96 C80 84 74 70 70 52 C68 40 70 28 76 18"/>
-        <path d="M74 72 C64 68 56 60 52 48"/>
-        <path d="M71 56 C62 52 58 42 60 30"/>
-        <path d="M70 46 C64 36 66 24 72 14"/>
-        <path d="M79 82 C72 84 64 82 58 78"/>
+    <defs>
+      <linearGradient id="stagFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#cdbff2" stop-opacity=".8"/></linearGradient>
+      <filter id="stagGlow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    </defs>
+    <circle cx="100" cy="108" r="82" fill="none" stroke="#e7c368" stroke-opacity=".5" stroke-width="1.2"/>
+    <circle cx="100" cy="108" r="88" fill="none" stroke="#8b5cf6" stroke-opacity=".35" stroke-width=".8" stroke-dasharray="2 6"/>
+    <g filter="url(#stagGlow)">
+      <g fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M118 96 C114 80 114 62 124 44 C130 33 140 26 152 22"/>
+        <path d="M116 72 C124 62 134 58 146 58"/>
+        <path d="M120 54 C128 46 138 42 150 44"/>
+        <path d="M128 40 C134 30 144 26 156 28"/>
       </g>
-      <use href="#antler" transform="matrix(-1 0 0 1 200 0)"/>
+      <g fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M104 98 C96 82 88 64 92 44 C94 32 100 22 112 12"/>
+        <path d="M93 72 C84 66 78 56 76 42"/>
+        <path d="M92 54 C84 46 84 34 90 24"/>
+        <path d="M97 40 C93 30 98 18 108 10"/>
+        <path d="M99 84 C90 86 82 82 76 74"/>
+        <path d="M92 60 C100 56 106 48 108 40"/>
+      </g>
+      <path d="M110 100 C106 90 108 80 116 74 C118 84 116 94 112 102 Z" fill="url(#stagFill)"/>
+      <path d="M64 192 C66 164 72 142 84 124 C92 112 100 104 112 102 L130 104 C140 106 148 114 146 124 C144 132 136 134 128 132 L120 130 C118 138 112 142 104 142 C100 158 96 174 94 192 Z" fill="url(#stagFill)"/>
+      <ellipse cx="124" cy="116" rx="2.4" ry="3" fill="#2a1a4d"/>
+      <path d="M142 122 C146 120 148 124 146 127 C143 128 141 125 142 122 Z" fill="#2a1a4d"/>
     </g>
-    <path d="M80 100 C66 92 56 96 54 108 C62 112 72 110 82 106 Z" fill="#fff"/>
-    <path d="M120 100 C134 92 144 96 146 108 C138 112 128 110 118 106 Z" fill="#fff"/>
-    <path d="M100 92 C82 94 74 110 78 128 C82 146 92 162 100 168 C108 162 118 146 122 128 C126 110 118 94 100 92 Z" fill="#fff"/>
-    <ellipse cx="91" cy="122" rx="3.2" ry="4" fill="#2a1a4d"/>
-    <ellipse cx="109" cy="122" rx="3.2" ry="4" fill="#2a1a4d"/>
-    <path d="M94 156 C97 152 103 152 106 156 C104 161 96 161 94 156 Z" fill="#2a1a4d"/>
+    <g fill="#fff" opacity=".8"><circle cx="46" cy="60" r="1.2"/><circle cx="160" cy="80" r="1"/><circle cx="58" cy="150" r=".9"/><circle cx="150" cy="150" r="1.1"/><circle cx="100" cy="24" r=".9"/></g>
   </symbol>
 </svg>
 <header>
@@ -166,6 +195,7 @@
       <button data-view="board" class="active">This Week</button>
       <button data-view="standings">Standings</button>
       <button data-view="mine">My Picks</button>
+      <button data-view="cards">My Cards</button>
       <button data-view="season">Season</button>
       <button data-view="stag">The White Stag Club</button>
       <button data-view="admin">Commissioner</button>
@@ -208,6 +238,7 @@
         <h2>Who's in</h2>
         <p class="sub" id="boardSub">Picks are revealed at lock time.</p>
         <div class="scroll"><table id="boardTable"><thead><tr><th>Owner</th><th>Status</th><th id="boardGolferHead" class="hidden">Golfer</th><th class="num hidden" id="boardPtsHead">Points</th></tr></thead><tbody></tbody></table></div>
+        <div id="boardCards"></div>
       </div>
     </div>
   </section>
@@ -243,6 +274,21 @@
         </details>
       </div>
     </div>
+  </section>
+
+  <!-- ================= MY CARDS ================= -->
+  <section id="view-cards" class="hidden">
+    <div class="card">
+      <h2>My cards</h2>
+      <p class="sub">Your hand is yours alone. Play a card on an upcoming week — it stays secret until that tournament locks, then the whole league sees it and the scoring applies itself.</p>
+      <div class="row">
+        <div class="f"><label>Owner</label><select id="cardsOwner"></select></div>
+        <div class="f sm"><label>PIN</label><input id="cardsPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div>
+        <div><button class="btn" id="cardsLoad">Show my hand</button></div>
+      </div>
+      <div id="cardsMsg"></div>
+    </div>
+    <div class="hand" id="hand"></div>
   </section>
 
   <!-- ================= SEASON ================= -->
@@ -284,8 +330,36 @@
       <h2>Enter results</h2>
       <p class="sub">Type each golfer's actual prize money for the week. Points are calculated automatically.</p>
       <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div></div>
-      <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th></th><th class="num">Points after cards</th></tr></thead><tbody></tbody></table></div>
       <div id="adminResultsMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2>Deal a card</h2>
+      <p class="sub">Only the owner you deal it to can see it. Choose the effect that matches the card's rules and the scoring applies itself when the card is played.</p>
+      <div class="row">
+        <div class="f"><label>Deal to</label><select id="dcOwner"></select></div>
+        <div class="f"><label>Card name</label><input id="dcName" placeholder="Ryder Die"></div>
+        <div class="f sm"><label>Type line</label><input id="dcKind" value="Enchantment"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="f"><label>Effect</label><select id="dcEffect"></select></div>
+        <div class="f sm" id="dcParamWrap"><label id="dcParamLabel">Value</label><input id="dcParam" type="number" step="any"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="f"><label>Rules text</label><input id="dcRules" placeholder="You're going head to head with a player of your choice. The winner gets double the prize money, loser gets nothing."></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <div class="f"><label>Flavor text</label><input id="dcFlavor" placeholder="“Dying is easy, young man. Golf is harder.”"></div>
+        <div class="f"><label>Artwork</label><input id="dcImage" type="file" accept="image/*"></div>
+        <div><button class="btn" id="dcDeal">Deal card</button></div>
+      </div>
+      <div id="dcMsg"></div>
+      <div class="grid2" style="margin-top:14px">
+        <div><div class="hint" style="margin:0 0 8px">Preview</div><div class="hand mini" id="dcPreview"></div></div>
+        <div><div class="hint" style="margin:0 0 8px">All cards dealt</div>
+          <div class="scroll"><table id="dcTable"><thead><tr><th>Owner</th><th>Card</th><th>Status</th><th>Week</th><th></th></tr></thead><tbody></tbody></table></div></div>
+      </div>
     </div>
 
     <div class="grid2">
@@ -383,7 +457,30 @@
   const recall = () => { try { return { name: sessionStorage.getItem('fg_owner') || '', pin: sessionStorage.getItem('fg_pin') || '' }; } catch { return {name:'', pin:''}; } };
 
   // ---- navigation ----
-  const views = ['board','standings','mine','season','stag','admin'];
+  // ---- card effects the scoring engine (schema.sql: scored_points) understands ----
+  const EFFECTS = {
+    multiply: { label: 'Multiply my points', param: 'x', paramLabel: 'Multiplier (e.g. 2)', target: false, sum: p => `My points ×${p.x ?? 2}` },
+    flat:     { label: 'Bonus / penalty ($)', param: 'amount', paramLabel: 'Amount in $ (negative = penalty)', target: false,
+                sum: p => `${Number(p.amount || 0) < 0 ? '−' : '+'}${fmt$(Math.abs(Number(p.amount || 0)))} to my points` },
+    duel:     { label: 'Duel — winner ×2, loser 0', target: true, sum: () => 'Head to head: more prize money wins ×2, loser gets 0' },
+    steal:    { label: "Steal % of a rival's points", param: 'pct', paramLabel: 'Percent (e.g. 25)', target: true, sum: p => `Take ${p.pct ?? 25}% of a rival's points` },
+    swap:     { label: 'Swap points with a rival', target: true, sum: () => "Swap this week's points with a rival" },
+    shield:   { label: 'Shield', target: false, sum: () => "Rivals' cards cannot touch me this week" },
+    mulligan: { label: 'Mulligan', target: false, sum: () => 'Reuse a golfer this week' },
+    custom:   { label: 'Custom (commissioner applies by hand)', target: false, sum: () => 'Commissioner applies the effect by hand' },
+  };
+  function tcgHTML(c, foot) {
+    const e = EFFECTS[c.effect] || EFFECTS.custom;
+    return `<div class="tcg ${c.status || ''}">
+      <div class="tcg-title">${esc(c.name)}</div>
+      <div class="tcg-art">${c.image ? `<img src="${esc(c.image)}" alt="">` : '<svg class="crest" aria-hidden="true"><use href="#stag"/></svg>'}</div>
+      <div class="tcg-type">${esc(c.kind || 'Enchantment')}<span>${esc(e.sum(c.params || {}))}</span></div>
+      <div class="tcg-text">${c.rules ? `<p>${esc(c.rules)}</p>` : ''}${c.flavor ? `<p class="fl">${esc(c.flavor)}</p>` : ''}</div>
+      ${foot ? `<div class="tcg-foot">${foot}</div>` : ''}
+    </div>`;
+  }
+
+  const views = ['board','standings','mine','cards','season','stag','admin'];
   function show(view) {
     views.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
     document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
@@ -391,7 +488,10 @@
     const r = recall();
     if (r.name && !$('mineOwner').value) { $('mineOwner').value = r.name; $('minePin').value = r.pin; }
     if (r.name && !$('pickOwner').value) { $('pickOwner').value = r.name; $('pickPin').value = r.pin; }
-    ({standings: loadStandings, season: loadSeason, stag: loadStag, admin: loadAdmin, mine: () => { if ($('mineOwner').value && $('minePin').value) loadMine(); }})[view]?.();
+    if (r.name && !$('cardsOwner').value) { $('cardsOwner').value = r.name; $('cardsPin').value = r.pin; }
+    ({standings: loadStandings, season: loadSeason, stag: loadStag, admin: loadAdmin,
+      mine: () => { if ($('mineOwner').value && $('minePin').value) loadMine(); },
+      cards: () => { if ($('cardsOwner').value && $('cardsPin').value) loadCards(); }})[view]?.();
   }
   $('nav').addEventListener('click', e => { if (e.target.dataset.view) show(e.target.dataset.view); });
 
@@ -402,7 +502,8 @@
     const golfers = await rpc('list_golfers');
     $('golferList').innerHTML = golfers.map(g => `<option value="${esc(g.name)}">`).join('');
     const ownerOpts = '<option value="">Select…</option>' + owners.map(o => `<option>${esc(o.name)}</option>`).join('');
-    ['pickOwner','mineOwner'].forEach(id => $(id).innerHTML = ownerOpts);
+    ['pickOwner','mineOwner','cardsOwner'].forEach(id => $(id).innerHTML = ownerOpts);
+    $('dcOwner').innerHTML = owners.map(o => `<option>${esc(o.name)}</option>`).join('');
     const tOpts = tournaments.map(t => `<option value="${t.id}">${esc(t.name)} · ${fmtDate(t.start_date)}${t.locked ? ' 🔒' : ''}</option>`).join('');
     $('boardTournament').innerHTML = tOpts;
     $('adminTournament').innerHTML = tOpts;
@@ -413,7 +514,7 @@
     if (next) { $('boardTournament').value = next.id; $('adminTournament').value = (tournaments.filter(t => t.locked).pop() || next).id; }
     $('boardTournament').dataset.sel = next?.id || '';
     const r = recall();
-    if (r.name) { $('pickOwner').value = r.name; $('mineOwner').value = r.name; $('pickPin').value = r.pin; $('minePin').value = r.pin; }
+    if (r.name) { ['pickOwner','mineOwner','cardsOwner'].forEach(id => $(id).value = r.name); ['pickPin','minePin','cardsPin'].forEach(id => $(id).value = r.pin); }
   }
 
   // ---- THIS WEEK ----
@@ -445,9 +546,15 @@
     $('boardTable').querySelector('tbody').innerHTML = rows.map(b => `
       <tr><td><b>${esc(b.owner)}</b></td>
           <td>${b.has_picked ? `<span class="tag in">Picked</span>` : `<span class="tag wait">${locked ? 'No pick' : 'Waiting'}</span>`}</td>
-          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}</td>` : ''}
+          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${esc(b.note)}</small>` : ''}</td>` : ''}
       </tr>`).join('');
-    if (!locked) await refreshUsedHint();
+    if (locked) {
+      const cards = await rpc('tournament_cards', { p_tournament_id: id });
+      $('boardCards').innerHTML = cards.length
+        ? `<h2 style="margin-top:20px">Cards in play</h2><p class="sub">Revealed at lock. Applied to the points above in the order they were played.</p>
+           <div class="hand mini">${cards.map(c => tcgHTML(c, `Played by <b>${esc(c.owner)}</b>${c.target ? ` against <b>${esc(c.target)}</b>` : ''}`)).join('')}</div>`
+        : '';
+    } else { $('boardCards').innerHTML = ''; await refreshUsedHint(); }
   }
   async function refreshUsedHint() {
     const name = $('pickOwner').value, pin = $('pickPin').value;
@@ -502,7 +609,7 @@
       $('mineTable').querySelector('tbody').innerHTML = rows.map(r => `
         <tr><td>${esc(r.tournament)}</td><td>${fmtDate(r.start_date)}</td><td><b>${esc(r.golfer)}</b></td>
             <td>${r.locked ? '<span class="tag lock">Final</span>' : '<span class="tag open">Can still change</span>'}</td>
-            <td class="num">${r.locked ? fmt$(r.winnings) : '—'}</td><td class="num">${r.locked ? fmt$(r.points) : '—'}</td></tr>`).join('')
+            <td class="num">${r.locked ? fmt$(r.winnings) : '—'}</td><td class="num">${r.locked ? fmt$(r.points) : '—'}${r.note ? `<small class="note">${esc(r.note)}</small>` : ''}</td></tr>`).join('')
         || '<tr><td colspan="6" class="muted">No picks yet this season.</td></tr>';
     } catch (e) { $('mineResults').classList.add('hidden'); msg('mineMsg', e.message, 'err'); }
   }
@@ -514,6 +621,53 @@
       $('minePin').value = $('newPin').value; $('pickPin').value = $('newPin').value; remember($('mineOwner').value, $('newPin').value); $('newPin').value = '';
       msg('mineMsg', 'PIN updated.', 'ok');
     } catch (e) { msg('mineMsg', e.message, 'err'); }
+  });
+
+  // ---- MY CARDS ----
+  async function loadCards() {
+    const name = $('cardsOwner').value, pin = $('cardsPin').value;
+    if (!name || !pin) return msg('cardsMsg', 'Choose your name and enter your PIN.', 'err');
+    try {
+      const cards = await rpc('my_cards', { p_owner: name, p_pin: pin });
+      remember(name, pin);
+      const open = tournaments.filter(t => !t.locked), rivals = owners.filter(o => o.name !== name);
+      $('hand').innerHTML = cards.map(c => {
+        const e = EFFECTS[c.effect] || EFFECTS.custom;
+        let foot;
+        if (c.status === 'held') {
+          foot = `<div class="row">
+            <div class="f"><label>Play on</label><select class="play-t">${open.map(t => `<option value="${t.id}">${esc(t.name)} · ${fmtDate(t.start_date)}</option>`).join('')}</select></div>
+            ${e.target ? `<div class="f"><label>Against</label><select class="play-target">${rivals.map(o => `<option>${esc(o.name)}</option>`).join('')}</select></div>` : ''}
+            <div><button class="btn play-btn" data-id="${c.id}" ${open.length ? '' : 'disabled'}>Play</button></div></div>`;
+        } else if (!c.locked) {
+          foot = `<span class="tag in">In play</span> ${esc(c.tournament)}${c.target ? ` vs <b>${esc(c.target)}</b>` : ''}
+            <button class="btn ghost unplay-btn" data-id="${c.id}" style="margin-left:8px;padding:7px 12px">Take back</button>`;
+        } else {
+          foot = `<span class="tag lock">Played</span> ${esc(c.tournament)}${c.target ? ` vs <b>${esc(c.target)}</b>` : ''}`;
+        }
+        return tcgHTML(c, foot);
+      }).join('') || '<div class="card" style="grid-column:1/-1"><div class="empty">Your hand is empty. The commissioner deals cards when the spirit moves him.</div></div>';
+    } catch (e) { $('hand').innerHTML = ''; msg('cardsMsg', e.message, 'err'); }
+  }
+  $('cardsLoad').addEventListener('click', () => { msg('cardsMsg', ''); loadCards(); });
+  $('cardsPin').addEventListener('keydown', e => { if (e.key === 'Enter') { msg('cardsMsg', ''); loadCards(); } });
+  $('hand').addEventListener('click', async e => {
+    const play = e.target.closest('.play-btn'), un = e.target.closest('.unplay-btn');
+    if (!play && !un) return;
+    const name = $('cardsOwner').value, pin = $('cardsPin').value;
+    try {
+      let text;
+      if (play) {
+        const box = play.closest('.tcg');
+        const r = await rpc('play_card', { p_owner: name, p_pin: pin, p_card_id: Number(play.dataset.id),
+          p_tournament_id: Number(box.querySelector('.play-t').value), p_target: box.querySelector('.play-target')?.value || null });
+        text = `${r.card} is in play for the ${r.tournament}${r.target ? ` against ${r.target}` : ''}. Nobody sees it until lock.`;
+      } else {
+        await rpc('unplay_card', { p_owner: name, p_pin: pin, p_card_id: Number(un.dataset.id) });
+        text = 'Card returned to your hand.';
+      }
+      await loadCards(); msg('cardsMsg', text, 'ok');
+    } catch (err) { msg('cardsMsg', err.message, 'err'); }
   });
 
   // ---- SEASON GRID ----
@@ -558,7 +712,55 @@
     $('tSeason').value = s; $('setSeason').value = s;
     if (!$('chSeason').value) $('chSeason').value = s - 1;
     $('chOwners').innerHTML = owners.map(o => `<option value="${esc(o.name)}">`).join('');
+    dcSync(); loadAdminCards().catch(() => {});
   }
+  // ---- deal cards ----
+  let dcImageData = null;
+  $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
+  const dcParams = () => { const e = EFFECTS[$('dcEffect').value]; const v = $('dcParam').value; return e.param && v !== '' ? { [e.param]: Number(v) } : {}; };
+  function dcSync() {
+    const e = EFFECTS[$('dcEffect').value];
+    $('dcParamWrap').classList.toggle('hidden', !e.param); $('dcParamLabel').textContent = e.paramLabel || 'Value';
+    $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: dcParams(),
+      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData });
+  }
+  ['dcName','dcKind','dcEffect','dcParam','dcRules','dcFlavor'].forEach(id => $(id).addEventListener('input', dcSync));
+  $('dcImage').addEventListener('change', () => {
+    const f = $('dcImage').files[0]; if (!f) { dcImageData = null; dcSync(); return; }
+    const img = new Image(), url = URL.createObjectURL(f);
+    img.onload = () => {                                  // shrink so the card stays small in the database
+      const k = Math.min(1, 640 / img.width), cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      dcImageData = cv.toDataURL('image/jpeg', 0.82); URL.revokeObjectURL(url); dcSync();
+    };
+    img.src = url;
+  });
+  $('dcDeal').addEventListener('click', async () => {
+    try {
+      await rpc('admin_deal_card', { p_admin_pin: apin(), p_owner: $('dcOwner').value, p_name: $('dcName').value, p_kind: $('dcKind').value,
+        p_effect: $('dcEffect').value, p_params: dcParams(), p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData });
+      msg('dcMsg', `Dealt “${$('dcName').value}” to ${$('dcOwner').value}.`, 'ok');
+      ['dcName','dcRules','dcFlavor','dcParam','dcImage'].forEach(id => $(id).value = ''); dcImageData = null; dcSync();
+      await loadAdminCards();
+    } catch (e) { msg('dcMsg', e.message, 'err'); }
+  });
+  async function loadAdminCards() {
+    if (!$('adminPin').value) return;
+    const rows = await rpc('admin_list_cards', { p_admin_pin: apin() });
+    $('dcTable').querySelector('tbody').innerHTML = rows.map(r => `<tr>
+      <td><b>${esc(r.owner)}</b></td><td>${esc(r.name)}<small class="note" style="color:var(--muted)">${esc((EFFECTS[r.effect] || EFFECTS.custom).sum(r.params || {}))}</small></td>
+      <td><span class="tag ${r.status === 'played' ? 'in' : r.status === 'revoked' ? 'wait' : 'open'}">${r.status}</span></td>
+      <td>${r.tournament ? esc(r.tournament) + (r.target ? ' vs ' + esc(r.target) : '') : '—'}</td>
+      <td>${r.status !== 'revoked' ? `<button class="btn ghost revoke-btn" data-id="${r.id}" style="padding:6px 10px">Revoke</button>` : ''}</td></tr>`).join('')
+      || '<tr><td colspan="5" class="muted">No cards dealt yet.</td></tr>';
+  }
+  $('dcTable').addEventListener('click', async e => {
+    const b = e.target.closest('.revoke-btn'); if (!b || !confirm('Revoke this card? The owner loses it.')) return;
+    try { await rpc('admin_revoke_card', { p_admin_pin: apin(), p_card_id: Number(b.dataset.id) }); await loadAdminCards(); }
+    catch (err) { msg('dcMsg', err.message, 'err'); }
+  });
+  $('adminPin').addEventListener('change', () => loadAdminCards().catch(() => {}));
   $('chSave').addEventListener('click', async () => {
     try {
       if (!$('chSeason').value || !$('chOwner').value.trim()) throw new Error('Season and champion name are required.');
@@ -579,18 +781,19 @@
   async function loadAdminBoard() {
     msg('adminResultsMsg', '');
     const id = Number($('adminTournament').value); const t = tournaments.find(x => x.id === id);
-    if (!t.locked) { $('adminResults').querySelector('tbody').innerHTML = `<tr><td colspan="4" class="muted">This tournament hasn't locked yet — picks are still hidden (even from the commissioner). Come back after ${fmtWhen(t.lock_at)}.</td></tr>`; return; }
+    if (!t.locked) { $('adminResults').querySelector('tbody').innerHTML = `<tr><td colspan="5" class="muted">This tournament hasn't locked yet — picks are still hidden (even from the commissioner). Come back after ${fmtWhen(t.lock_at)}.</td></tr>`; return; }
     const board = await rpc('tournament_board', { p_tournament_id: id });
     $('adminResults').querySelector('tbody').innerHTML = board.map(b => `<tr>
       <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}</td>
       <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:160px">` : '—'}</td>
-      <td>${b.has_picked ? `<button class="btn ghost save-w" data-owner="${esc(b.owner)}">Save</button>` : ''}</td></tr>`).join('');
+      <td>${b.has_picked ? `<button class="btn ghost save-w" data-owner="${esc(b.owner)}">Save</button>` : ''}</td>
+      <td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${esc(b.note)}</small>` : ''}</td></tr>`).join('');
   }
   $('adminLoadBoard').addEventListener('click', () => loadAdminBoard().catch(e => msg('adminResultsMsg', e.message, 'err')));
   $('adminResults').addEventListener('click', async e => {
     const btn = e.target.closest('.save-w'); if (!btn) return;
     const owner = btn.dataset.owner, val = $('adminResults').querySelector(`input[data-owner="${CSS.escape(owner)}"]`).value;
-    try { await rpc('admin_set_winnings', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value), p_owner: owner, p_winnings: Number(val || 0) }); msg('adminResultsMsg', `Saved ${owner}: ${fmt$(val)}.`, 'ok'); }
+    try { await rpc('admin_set_winnings', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value), p_owner: owner, p_winnings: Number(val || 0) }); await loadAdminBoard(); msg('adminResultsMsg', `Saved ${owner}: ${fmt$(val)}.`, 'ok'); }
     catch (err) { msg('adminResultsMsg', err.message, 'err'); }
   });
   $('ownerSave').addEventListener('click', async () => {
