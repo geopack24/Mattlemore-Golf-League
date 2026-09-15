@@ -5,7 +5,7 @@ Static one-page site (GitHub Pages) + Supabase (Postgres) backend for GP's fanta
 ## Files
 - `index.html` — the entire site: HTML, CSS and vanilla JS in one file. Loads `@supabase/supabase-js@2` UMD from jsDelivr and `config.js`.
 - `config.js` — `window.LEAGUE_CONFIG = { SUPABASE_URL, SUPABASE_ANON_KEY, LEAGUE_NAME }`. Anon key is public by design.
-- `supabase/schema.sql` — idempotent; run in the Supabase SQL editor. Tables, RLS, all RPC functions, 2027 schedule seed (29 events, 2026 purses as placeholders), golfer autocomplete seed, commissioner PIN seed (`1234` placeholder — GP must change).
+- `supabase/schema.sql` — idempotent; run in the Supabase SQL editor. Tables, RLS, all RPC functions, 2027 schedule seed (30 events incl. Pebble Beach, 2026 purses as placeholders), golfer autocomplete seed, commissioner PIN seed (`1234` placeholder — GP must change).
 - `README.md` — setup walkthrough for GP (non-developer).
 
 ## League rules the code enforces (server-side, in schema.sql)
@@ -32,4 +32,3 @@ No test framework checked in. Previous verification: schema loaded into local Po
 ## Open questions for GP
 - Owner names live in sheet tabs not yet shared (add via Commissioner tab or `admin_set_owner`).
 - 2027 purses: seeded with 2026 values; update when the Tour publishes them (cosmetic only).
-- Whether to add AT&T Pebble Beach (Feb 4 2027, Signature) — excluded to match the 2026 sheet.

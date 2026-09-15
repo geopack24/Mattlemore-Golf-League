@@ -73,15 +73,13 @@ If someone forgets their PIN, re-save them under **Owners** with a new PIN.
 
 ## The 2027 schedule
 
-`schema.sql` seeds the 29 league events for 2027 (WM Phoenix Open, Feb 11 → TOUR Championship, Aug 26),
-picked the same way as the 2026 sheet: no opposite-field events, no January West Coast swing. Multipliers
+`schema.sql` seeds the 30 league events for 2027 (AT&T Pebble Beach Pro-Am, Feb 4 → TOUR Championship, Aug 26),
+picked the same way as the 2026 sheet plus Pebble Beach: no opposite-field events, nothing in January. Multipliers
 carry over — majors 3×, PLAYERS and FedEx St. Jude 1.5×, Zurich and BMW 2×, TOUR Championship 1.35×.
 The Zurich Classic (two-man teams) is scored like any other week: pick one golfer, his listed prize money counts.
 
-Two things to know:
-- **Purses are last year's numbers** until the Tour publishes 2027 figures. They only show on the board;
-  scoring always uses the winnings you enter. Fix any of them under Commissioner → Schedule.
-- If the league wants Pebble Beach (Feb 4, Signature Event) or any other week, add it the same way.
+**Purses are last year's numbers** until the Tour publishes 2027 figures. They only show on the board;
+scoring always uses the winnings you enter. Fix any of them — or add/remove a week — under Commissioner → Schedule.
 
 ## Next season
 

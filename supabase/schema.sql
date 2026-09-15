@@ -315,43 +315,44 @@ on conflict (key) do nothing;
 insert into settings (key, value) values ('current_season', '2027') on conflict (key) do nothing;
 
 -- 2027 schedule (PGA Tour announcement, Aug 26 2026), using the same event
--- selection and multipliers as the 2026 league sheet: February through the
--- TOUR Championship, no opposite-field events, no Hawaii/AmEx/Sentry/Pebble.
+-- selection and multipliers as the 2026 league sheet plus Pebble Beach: February
+-- through the TOUR Championship, no opposite-field events, no Hawaii/AmEx/Sentry.
 -- Changes from 2026: Cadillac Championship moved to March, Valspar to May,
 -- the Rocket Classic is gone (Sompo Championship takes that week), and the
 -- Wyndham is now the GO by Raymond James. Purses are 2026 placeholders until
 -- the Tour publishes 2027 figures — they only show on the board, scoring uses
 -- the actual winnings the commissioner enters. Picks lock Thursday 7:00 AM ET.
 insert into tournaments (season, sort_order, name, start_date, lock_at, prize_pool, multiplier) values
- (2027, 1, 'WM Phoenix Open',               '2027-02-11', '2027-02-11 07:00 America/New_York',  9600000, 1),
- (2027, 2, 'The Genesis Invitational',      '2027-02-18', '2027-02-18 07:00 America/New_York', 20000000, 1),
- (2027, 3, 'Cognizant Classic',             '2027-02-25', '2027-02-25 07:00 America/New_York',  9600000, 1),
- (2027, 4, 'Cadillac Championship',         '2027-03-04', '2027-03-04 07:00 America/New_York', 20000000, 1),
- (2027, 5, 'THE PLAYERS Championship',      '2027-03-11', '2027-03-11 07:00 America/New_York', 25000000, 1.5),
- (2027, 6, 'Arnold Palmer Invitational',    '2027-03-18', '2027-03-18 07:00 America/New_York', 20000000, 1),
- (2027, 7, 'Houston Open',                  '2027-03-25', '2027-03-25 07:00 America/New_York',  9900000, 1),
- (2027, 8, 'Valero Texas Open',             '2027-04-01', '2027-04-01 07:00 America/New_York',  9800000, 1),
- (2027, 9, 'Masters',                       '2027-04-08', '2027-04-08 07:00 America/New_York', 21000000, 3),
- (2027,10, 'RBC Heritage',                  '2027-04-15', '2027-04-15 07:00 America/New_York', 20000000, 1),
- (2027,11, 'Zurich Classic of New Orleans', '2027-04-22', '2027-04-22 07:00 America/New_York',  9500000, 2),
- (2027,12, 'CJ Cup Byron Nelson',           '2027-04-29', '2027-04-29 07:00 America/New_York', 10300000, 1),
- (2027,13, 'Valspar Championship',          '2027-05-06', '2027-05-06 07:00 America/New_York',  9100000, 1),
- (2027,14, 'Truist Championship',           '2027-05-13', '2027-05-13 07:00 America/New_York', 20000000, 1),
- (2027,15, 'PGA Championship',              '2027-05-20', '2027-05-20 07:00 America/New_York', 19000000, 3),
- (2027,16, 'Charles Schwab Challenge',      '2027-05-27', '2027-05-27 07:00 America/New_York',  9900000, 1),
- (2027,17, 'The Memorial Tournament',       '2027-06-03', '2027-06-03 07:00 America/New_York', 20000000, 1),
- (2027,18, 'RBC Canadian Open',             '2027-06-10', '2027-06-10 07:00 America/New_York',  9800000, 1),
- (2027,19, 'US Open',                       '2027-06-17', '2027-06-17 07:00 America/New_York', 21500000, 3),
- (2027,20, 'Travelers Championship',        '2027-06-24', '2027-06-24 07:00 America/New_York', 20000000, 1),
- (2027,21, 'John Deere Classic',            '2027-07-01', '2027-07-01 07:00 America/New_York',  8800000, 1),
- (2027,22, 'Genesis Scottish Open',         '2027-07-08', '2027-07-08 07:00 America/New_York',  9000000, 1),
- (2027,23, 'British Open',                  '2027-07-15', '2027-07-15 07:00 America/New_York', 17000000, 3),
- (2027,24, '3M Open',                       '2027-07-22', '2027-07-22 07:00 America/New_York',  8800000, 1),
- (2027,25, 'Sompo Championship',            '2027-07-29', '2027-07-29 07:00 America/New_York',  8800000, 1),
- (2027,26, 'GO by Raymond James',           '2027-08-05', '2027-08-05 07:00 America/New_York',  8500000, 1),
- (2027,27, 'FedEx St. Jude Championship',   '2027-08-12', '2027-08-12 07:00 America/New_York', 20000000, 1.5),
- (2027,28, 'BMW Championship',              '2027-08-19', '2027-08-19 07:00 America/New_York', 20000000, 2),
- (2027,29, 'TOUR Championship',             '2027-08-26', '2027-08-26 07:00 America/New_York', 40000000, 1.35)
+ (2027, 1, 'AT&T Pebble Beach Pro-Am',      '2027-02-04', '2027-02-04 07:00 America/New_York', 20000000, 1),
+ (2027, 2, 'WM Phoenix Open',               '2027-02-11', '2027-02-11 07:00 America/New_York',  9600000, 1),
+ (2027, 3, 'The Genesis Invitational',      '2027-02-18', '2027-02-18 07:00 America/New_York', 20000000, 1),
+ (2027, 4, 'Cognizant Classic',             '2027-02-25', '2027-02-25 07:00 America/New_York',  9600000, 1),
+ (2027, 5, 'Cadillac Championship',         '2027-03-04', '2027-03-04 07:00 America/New_York', 20000000, 1),
+ (2027, 6, 'THE PLAYERS Championship',      '2027-03-11', '2027-03-11 07:00 America/New_York', 25000000, 1.5),
+ (2027, 7, 'Arnold Palmer Invitational',    '2027-03-18', '2027-03-18 07:00 America/New_York', 20000000, 1),
+ (2027, 8, 'Houston Open',                  '2027-03-25', '2027-03-25 07:00 America/New_York',  9900000, 1),
+ (2027, 9, 'Valero Texas Open',             '2027-04-01', '2027-04-01 07:00 America/New_York',  9800000, 1),
+ (2027,10, 'Masters',                       '2027-04-08', '2027-04-08 07:00 America/New_York', 21000000, 3),
+ (2027,11, 'RBC Heritage',                  '2027-04-15', '2027-04-15 07:00 America/New_York', 20000000, 1),
+ (2027,12, 'Zurich Classic of New Orleans', '2027-04-22', '2027-04-22 07:00 America/New_York',  9500000, 2),
+ (2027,13, 'CJ Cup Byron Nelson',           '2027-04-29', '2027-04-29 07:00 America/New_York', 10300000, 1),
+ (2027,14, 'Valspar Championship',          '2027-05-06', '2027-05-06 07:00 America/New_York',  9100000, 1),
+ (2027,15, 'Truist Championship',           '2027-05-13', '2027-05-13 07:00 America/New_York', 20000000, 1),
+ (2027,16, 'PGA Championship',              '2027-05-20', '2027-05-20 07:00 America/New_York', 19000000, 3),
+ (2027,17, 'Charles Schwab Challenge',      '2027-05-27', '2027-05-27 07:00 America/New_York',  9900000, 1),
+ (2027,18, 'The Memorial Tournament',       '2027-06-03', '2027-06-03 07:00 America/New_York', 20000000, 1),
+ (2027,19, 'RBC Canadian Open',             '2027-06-10', '2027-06-10 07:00 America/New_York',  9800000, 1),
+ (2027,20, 'US Open',                       '2027-06-17', '2027-06-17 07:00 America/New_York', 21500000, 3),
+ (2027,21, 'Travelers Championship',        '2027-06-24', '2027-06-24 07:00 America/New_York', 20000000, 1),
+ (2027,22, 'John Deere Classic',            '2027-07-01', '2027-07-01 07:00 America/New_York',  8800000, 1),
+ (2027,23, 'Genesis Scottish Open',         '2027-07-08', '2027-07-08 07:00 America/New_York',  9000000, 1),
+ (2027,24, 'British Open',                  '2027-07-15', '2027-07-15 07:00 America/New_York', 17000000, 3),
+ (2027,25, '3M Open',                       '2027-07-22', '2027-07-22 07:00 America/New_York',  8800000, 1),
+ (2027,26, 'Sompo Championship',            '2027-07-29', '2027-07-29 07:00 America/New_York',  8800000, 1),
+ (2027,27, 'GO by Raymond James',           '2027-08-05', '2027-08-05 07:00 America/New_York',  8500000, 1),
+ (2027,28, 'FedEx St. Jude Championship',   '2027-08-12', '2027-08-12 07:00 America/New_York', 20000000, 1.5),
+ (2027,29, 'BMW Championship',              '2027-08-19', '2027-08-19 07:00 America/New_York', 20000000, 2),
+ (2027,30, 'TOUR Championship',             '2027-08-26', '2027-08-26 07:00 America/New_York', 40000000, 1.35)
 on conflict (season, name) do nothing;
 
 -- Autocomplete seed (owners can still type any name; names from revealed picks
