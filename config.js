@@ -4,5 +4,5 @@
 window.LEAGUE_CONFIG = {
   SUPABASE_URL: "https://jtaqoaqiqbgkqychbetr.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_MsRI7xeGMn2F3MhEUpIlBg_a0wZJpfs",
-  LEAGUE_NAME: "Fantasy Golf 2027",
+  LEAGUE_NAME: "Mattlemore Golf League",
 };
