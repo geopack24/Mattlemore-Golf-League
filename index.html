@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fantasy Golf League</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛳</text></svg>">
+<style>
+  :root{
+    --green:#1f4d2e; --green-2:#2e6b3f; --green-3:#e6f0e8; --fair:#f6f3ea; --ink:#1d2320; --muted:#6a7570;
+    --line:#dcdad2; --card:#ffffff; --gold:#b8892b; --red:#a63d2f; --red-bg:#fbeae7; --ok-bg:#e6f4ea; --ok:#1e7a3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--fair)}
+  header{background:var(--green);color:#fff;padding:18px 20px 0}
+  .wrap{max-width:1040px;margin:0 auto}
+  header h1{margin:0;font-size:24px;letter-spacing:.3px;font-weight:700}
+  header h1 small{display:block;font-size:13px;font-weight:400;opacity:.8;margin-top:2px}
+  nav{display:flex;gap:4px;margin-top:14px;overflow-x:auto}
+  nav button{background:transparent;color:#dfe9e1;border:0;padding:10px 14px;font-size:14px;cursor:pointer;border-radius:8px 8px 0 0;white-space:nowrap}
+  nav button.active{background:var(--fair);color:var(--green);font-weight:600}
+  main{padding:20px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:18px}
+  .card h2{margin:0 0 4px;font-size:18px;color:var(--green)}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+  input,select{font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:#fff;min-width:0;width:100%}
+  .f{flex:1 1 180px}
+  .f.sm{flex:0 1 120px}
+  button.btn{font:inherit;font-weight:600;padding:10px 18px;border-radius:8px;border:0;background:var(--green-2);color:#fff;cursor:pointer}
+  button.btn:hover{background:var(--green)}
+  button.btn.ghost{background:transparent;color:var(--green);border:1px solid var(--green-2)}
+  button.btn:disabled{opacity:.5;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{font-size:12px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);font-weight:600}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr:last-child td{border-bottom:0}
+  .tag{display:inline-block;padding:3px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap}
+  .tag.in{background:var(--ok-bg);color:var(--ok)}
+  .tag.wait{background:#f1efe7;color:var(--muted)}
+  .tag.lock{background:#fff3d6;color:#8a6313}
+  .tag.open{background:var(--green-3);color:var(--green)}
+  .msg{padding:10px 14px;border-radius:8px;margin-top:12px;font-size:14px}
+  .msg.err{background:var(--red-bg);color:var(--red)}
+  .msg.ok{background:var(--ok-bg);color:var(--ok)}
+  .banner{background:#fff3d6;border:1px solid #ecd9a2;color:#5d4408;padding:12px 16px;border-radius:10px;margin-bottom:18px;font-size:14px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .kpi{display:flex;gap:18px;flex-wrap:wrap;margin:8px 0 4px}
+  .kpi div{flex:1 1 140px;background:var(--green-3);border-radius:10px;padding:10px 14px}
+  .kpi b{display:block;font-size:20px;color:var(--green)}
+  .kpi span{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .scroll{overflow-x:auto}
+  .hidden{display:none!important}
+  .rank{width:34px;color:var(--muted)}
+  .rank.top{color:var(--gold);font-weight:700}
+  .muted{color:var(--muted)}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .season-grid td.pick{font-size:13px}
+  .season-grid td.pick small{display:block;color:var(--muted)}
+  footer{text-align:center;color:var(--muted);font-size:12px;padding:20px}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1 id="leagueName">Fantasy Golf League <small>One golfer per week · no mulligans · prize money × multiplier</small></h1>
+    <nav id="nav">
+      <button data-view="board" class="active">This Week</button>
+      <button data-view="standings">Standings</button>
+      <button data-view="mine">My Picks</button>
+      <button data-view="season">Season</button>
+      <button data-view="admin">Commissioner</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="setupBanner" class="banner hidden">
+    <b>Site not connected yet.</b> Open <code>config.js</code> and paste your Supabase URL and anon key, then run <code>supabase/schema.sql</code> in the Supabase SQL editor. See README.md.
+  </div>
+
+  <!-- ================= THIS WEEK ================= -->
+  <section id="view-board">
+    <div class="card">
+      <div class="row">
+        <div class="f"><label>Tournament</label><select id="boardTournament"></select></div>
+        <div class="f" id="boardStatus"></div>
+      </div>
+      <div class="kpi" id="boardKpi"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card" id="pickCard">
+        <h2>Submit your pick</h2>
+        <p class="sub">Your golfer stays hidden from everyone else until the tournament starts. You can change it any time before lock.</p>
+        <div class="row">
+          <div class="f"><label>Owner</label><select id="pickOwner"></select></div>
+          <div class="f sm"><label>PIN</label><input id="pickPin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="f"><label>Golfer</label><input id="pickGolfer" list="golferList" placeholder="Start typing a name…" autocomplete="off"><datalist id="golferList"></datalist></div>
+          <div><button class="btn" id="pickSubmit">Lock it in</button></div>
+        </div>
+        <div class="hint" id="usedHint"></div>
+        <div id="pickMsg"></div>
+      </div>
+
+      <div class="card">
+        <h2>Who's in</h2>
+        <p class="sub" id="boardSub">Picks are revealed at lock time.</p>
+        <div class="scroll"><table id="boardTable"><thead><tr><th>Owner</th><th>Status</th><th id="boardGolferHead" class="hidden">Golfer</th><th class="num hidden" id="boardPtsHead">Points</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= STANDINGS ================= -->
+  <section id="view-standings" class="hidden">
+    <div class="card">
+      <h2>Season standings</h2>
+      <p class="sub">Points = golfer's prize money × tournament multiplier, summed over the season.</p>
+      <div class="scroll"><table id="standingsTable"><thead><tr><th class="rank">#</th><th>Owner</th><th class="num">Points</th><th class="num">Picks</th><th class="num">Weekly wins</th><th class="num">Best week</th></tr></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ================= MY PICKS ================= -->
+  <section id="view-mine" class="hidden">
+    <div class="card">
+      <h2>My picks</h2>
+      <p class="sub">Enter your name and PIN to see every golfer you've used this season.</p>
+      <div class="row">
+        <div class="f"><label>Owner</label><select id="mineOwner"></select></div>
+        <div class="f sm"><label>PIN</label><input id="minePin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••"></div>
+        <div><button class="btn" id="mineLoad">Show my picks</button></div>
+      </div>
+      <div id="mineMsg"></div>
+      <div id="mineResults" class="hidden">
+        <div class="kpi" id="mineKpi"></div>
+        <div class="scroll"><table id="mineTable"><thead><tr><th>Tournament</th><th>Date</th><th>Golfer</th><th>Status</th><th class="num">Winnings</th><th class="num">Points</th></tr></thead><tbody></tbody></table></div>
+        <details style="margin-top:14px"><summary class="muted" style="cursor:pointer">Change my PIN</summary>
+          <div class="row" style="margin-top:8px">
+            <div class="f sm"><label>New PIN</label><input id="newPin" type="password" inputmode="numeric" placeholder="4–8 digits"></div>
+            <div><button class="btn ghost" id="changePin">Update PIN</button></div>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SEASON ================= -->
+  <section id="view-season" class="hidden">
+    <div class="card">
+      <h2>Season at a glance</h2>
+      <p class="sub">Every revealed pick. Upcoming tournaments show only who has submitted.</p>
+      <div class="scroll"><table id="seasonTable" class="season-grid"><thead></thead><tbody></tbody></table></div>
+    </div>
+  </section>
+
+  <!-- ================= COMMISSIONER ================= -->
+  <section id="view-admin" class="hidden">
+    <div class="card">
+      <h2>Commissioner</h2>
+      <p class="sub">Enter results after each tournament, manage owners and the schedule.</p>
+      <div class="row"><div class="f sm"><label>Commissioner PIN</label><input id="adminPin" type="password" inputmode="numeric" autocomplete="off"></div></div>
+    </div>
+
+    <div class="card">
+      <h2>Enter results</h2>
+      <p class="sub">Type each golfer's actual prize money for the week. Points are calculated automatically.</p>
+      <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div></div>
+      <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th></th></tr></thead><tbody></tbody></table></div>
+      <div id="adminResultsMsg"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>Owners</h2>
+        <p class="sub">Add a new owner or reset someone's PIN.</p>
+        <div class="row">
+          <div class="f"><label>Name</label><input id="ownerName" placeholder="e.g. Mike"></div>
+          <div class="f sm"><label>PIN</label><input id="ownerPin" inputmode="numeric" placeholder="4–8 digits"></div>
+          <div class="f sm"><label>Active</label><select id="ownerActive"><option value="true">Yes</option><option value="false">No</option></select></div>
+          <div><button class="btn" id="ownerSave">Save owner</button></div>
+        </div>
+        <div id="ownerMsg"></div>
+        <div class="hint" id="ownerList"></div>
+      </div>
+
+      <div class="card">
+        <h2>Schedule</h2>
+        <p class="sub">Add or edit a tournament. Picks lock at the date and time you set (your local time).</p>
+        <div class="row">
+          <div class="f"><label>Name</label><input id="tName" list="tNames"><datalist id="tNames"></datalist></div>
+          <div class="f sm"><label>Season</label><input id="tSeason" type="number"></div>
+          <div class="f sm"><label>Order</label><input id="tOrder" type="number" placeholder="1"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="f"><label>Start date</label><input id="tDate" type="date"></div>
+          <div class="f"><label>Lock (local)</label><input id="tLock" type="datetime-local"></div>
+        </div>
+        <div class="row" style="margin-top:10px">
+          <div class="f"><label>Prize pool ($)</label><input id="tPool" type="number"></div>
+          <div class="f sm"><label>Multiplier</label><input id="tMult" type="number" step="0.05" value="1"></div>
+          <div><button class="btn" id="tSave">Save tournament</button></div>
+          <div><button class="btn ghost" id="tDelete">Delete</button></div>
+        </div>
+        <div id="tMsg"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Settings</h2>
+      <div class="row">
+        <div class="f sm"><label>Current season</label><input id="setSeason" type="number"></div>
+        <div><button class="btn ghost" id="setSeasonBtn">Set season</button></div>
+        <div class="f sm"><label>New commissioner PIN</label><input id="newAdminPin" type="password" inputmode="numeric"></div>
+        <div><button class="btn ghost" id="newAdminPinBtn">Change PIN</button></div>
+      </div>
+      <div id="settingsMsg"></div>
+    </div>
+  </section>
+</main>
+<footer>Fantasy Golf League · built on GitHub Pages + Supabase</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(() => {
+  const cfg = window.LEAGUE_CONFIG || {};
+  const configured = cfg.SUPABASE_URL && !cfg.SUPABASE_URL.includes('YOUR-PROJECT') && cfg.SUPABASE_ANON_KEY && !cfg.SUPABASE_ANON_KEY.includes('YOUR-ANON');
+  const $ = id => document.getElementById(id);
+  const fmt$ = n => n == null ? '—' : '$' + Math.round(Number(n)).toLocaleString();
+  const fmtDate = d => new Date(d + 'T12:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric'});
+  const fmtWhen = ts => new Date(ts).toLocaleString(undefined, {weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit'});
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const msg = (id, text, kind) => { $(id).innerHTML = text ? `<div class="msg ${kind}">${esc(text)}</div>` : ''; };
+
+  if (cfg.LEAGUE_NAME) $('leagueName').firstChild.textContent = cfg.LEAGUE_NAME + ' ';
+  if (!configured) { $('setupBanner').classList.remove('hidden'); }
+
+  const sb = configured ? supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+  async function rpc(fn, args = {}) {
+    if (!sb) throw new Error('Site is not connected to Supabase yet (see config.js).');
+    const { data, error } = await sb.rpc(fn, args);
+    if (error) throw new Error(error.message.replace(/^.*?:\s*/, m => m.match(/^P0001|^28000/) ? '' : m));
+    return data;
+  }
+
+  // ---- session memory (so owners don't retype name/PIN each view) ----
+  const remember = (name, pin) => { try { sessionStorage.setItem('fg_owner', name); sessionStorage.setItem('fg_pin', pin); } catch {} };
+  const recall = () => { try { return { name: sessionStorage.getItem('fg_owner') || '', pin: sessionStorage.getItem('fg_pin') || '' }; } catch { return {name:'', pin:''}; } };
+
+  // ---- navigation ----
+  const views = ['board','standings','mine','season','admin'];
+  function show(view) {
+    views.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
+    document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+    location.hash = view;
+    const r = recall();
+    if (r.name && !$('mineOwner').value) { $('mineOwner').value = r.name; $('minePin').value = r.pin; }
+    if (r.name && !$('pickOwner').value) { $('pickOwner').value = r.name; $('pickPin').value = r.pin; }
+    ({standings: loadStandings, season: loadSeason, admin: loadAdmin, mine: () => { if ($('mineOwner').value && $('minePin').value) loadMine(); }})[view]?.();
+  }
+  $('nav').addEventListener('click', e => { if (e.target.dataset.view) show(e.target.dataset.view); });
+
+  // ---- shared data ----
+  let tournaments = [], owners = [], season = null;
+  async function loadShared() {
+    [tournaments, owners, season] = await Promise.all([rpc('list_tournaments'), rpc('list_owners'), rpc('current_season')]);
+    const golfers = await rpc('list_golfers');
+    $('golferList').innerHTML = golfers.map(g => `<option value="${esc(g.name)}">`).join('');
+    const ownerOpts = '<option value="">Select…</option>' + owners.map(o => `<option>${esc(o.name)}</option>`).join('');
+    ['pickOwner','mineOwner'].forEach(id => $(id).innerHTML = ownerOpts);
+    const tOpts = tournaments.map(t => `<option value="${t.id}">${esc(t.name)} · ${fmtDate(t.start_date)}${t.locked ? ' 🔒' : ''}</option>`).join('');
+    $('boardTournament').innerHTML = tOpts;
+    $('adminTournament').innerHTML = tOpts;
+    $('tNames').innerHTML = tournaments.map(t => `<option value="${esc(t.name)}">`).join('');
+    // default: next tournament that isn't locked, else the most recent one
+    const prev = Number($('boardTournament').dataset.sel || 0);
+    const next = tournaments.find(t => t.id === prev) || tournaments.find(t => !t.locked) || tournaments[tournaments.length - 1];
+    if (next) { $('boardTournament').value = next.id; $('adminTournament').value = (tournaments.filter(t => t.locked).pop() || next).id; }
+    $('boardTournament').dataset.sel = next?.id || '';
+    const r = recall();
+    if (r.name) { $('pickOwner').value = r.name; $('mineOwner').value = r.name; $('pickPin').value = r.pin; $('minePin').value = r.pin; }
+  }
+
+  // ---- THIS WEEK ----
+  async function loadBoard() {
+    const id = Number($('boardTournament').value);
+    const t = tournaments.find(x => x.id === id);
+    if (!t) {
+      $('boardStatus').innerHTML = `<span class="muted">No tournaments on the ${season || ''} schedule yet — the commissioner adds them under Commissioner → Schedule.</span>`;
+      $('boardKpi').innerHTML = ''; $('boardTable').querySelector('tbody').innerHTML = '';
+      return;
+    }
+    const board = await rpc('tournament_board', { p_tournament_id: id });
+    const picked = board.filter(b => b.has_picked).length;
+    const locked = t.locked || new Date(t.lock_at) <= new Date();
+    $('boardStatus').innerHTML = locked
+      ? `<span class="tag lock">Locked</span> <span class="muted">picks revealed · started ${fmtWhen(t.lock_at)}</span>`
+      : `<span class="tag open">Open</span> <span class="muted">locks ${fmtWhen(t.lock_at)}</span>`;
+    $('boardKpi').innerHTML = `
+      <div><b>${fmt$(t.prize_pool)}</b><span>Purse</span></div>
+      <div><b>${Number(t.multiplier)}×</b><span>Multiplier</span></div>
+      <div><b>${fmt$(t.prize_pool * t.multiplier)}</b><span>Points pool</span></div>
+      <div><b>${picked} / ${board.length}</b><span>Picks in</span></div>`;
+    $('pickCard').classList.toggle('hidden', locked);
+    $('pickCard').parentElement.style.gridTemplateColumns = locked ? '1fr' : '';
+    $('boardGolferHead').classList.toggle('hidden', !locked);
+    $('boardPtsHead').classList.toggle('hidden', !locked);
+    $('boardSub').textContent = locked ? 'Tournament has started — picks are revealed.' : `Picks are hidden until ${fmtWhen(t.lock_at)}. Only who has submitted is shown.`;
+    const rows = locked ? [...board].sort((a,b) => (b.points||0) - (a.points||0) || a.owner.localeCompare(b.owner)) : board;
+    $('boardTable').querySelector('tbody').innerHTML = rows.map(b => `
+      <tr><td><b>${esc(b.owner)}</b></td>
+          <td>${b.has_picked ? `<span class="tag in">Picked</span>` : `<span class="tag wait">${locked ? 'No pick' : 'Waiting'}</span>`}</td>
+          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}</td>` : ''}
+      </tr>`).join('');
+    if (!locked) await refreshUsedHint();
+  }
+  async function refreshUsedHint() {
+    const name = $('pickOwner').value, pin = $('pickPin').value;
+    $('usedHint').textContent = '';
+    if (!name || !pin) return;
+    try {
+      const mine = await rpc('my_picks', { p_owner: name, p_pin: pin });
+      const cur = mine.find(p => p.tournament_id === Number($('boardTournament').value));
+      const used = mine.filter(p => p.tournament_id !== Number($('boardTournament').value)).map(p => p.golfer);
+      $('usedHint').innerHTML = (cur ? `Current pick for this week: <b>${esc(cur.golfer)}</b>. ` : '') +
+        (used.length ? `Already used this season (not allowed again): ${used.map(esc).join(', ')}` : 'No golfers used yet this season.');
+      remember(name, pin);
+    } catch { /* wrong pin — stay quiet until they submit */ }
+  }
+  $('boardTournament').addEventListener('change', () => { $('boardTournament').dataset.sel = $('boardTournament').value; loadBoard().catch(e => msg('pickMsg', e.message, 'err')); });
+  $('pickPin').addEventListener('change', refreshUsedHint);
+  $('pickOwner').addEventListener('change', refreshUsedHint);
+  $('pickSubmit').addEventListener('click', async () => {
+    const name = $('pickOwner').value, pin = $('pickPin').value, golfer = $('pickGolfer').value.trim();
+    if (!name || !pin || !golfer) return msg('pickMsg', 'Choose your name, enter your PIN and a golfer.', 'err');
+    $('pickSubmit').disabled = true;
+    try {
+      const r = await rpc('submit_pick', { p_owner: name, p_pin: pin, p_tournament_id: Number($('boardTournament').value), p_golfer: golfer });
+      remember(name, pin);
+      msg('pickMsg', `${r.golfer} is in for the ${r.tournament}${r.replaced && r.replaced !== r.golfer ? ` (replaced ${r.replaced})` : ''}. You can change it until ${fmtWhen(r.lock_at)}.`, 'ok');
+      $('pickGolfer').value = '';
+      await loadBoard();
+    } catch (e) { msg('pickMsg', e.message, 'err'); }
+    finally { $('pickSubmit').disabled = false; }
+  });
+
+  // ---- STANDINGS ----
+  async function loadStandings() {
+    const rows = await rpc('standings');
+    $('standingsTable').querySelector('tbody').innerHTML = rows.map((r, i) => `
+      <tr><td class="rank ${i === 0 && r.points > 0 ? 'top' : ''}">${i + 1}</td><td><b>${esc(r.owner)}</b></td>
+          <td class="num"><b>${fmt$(r.points)}</b></td><td class="num">${r.picks_made}</td><td class="num">${r.wins}</td><td class="num">${fmt$(r.best_week)}</td></tr>`).join('')
+      || '<tr><td colspan="6" class="muted">No owners yet.</td></tr>';
+  }
+
+  // ---- MY PICKS ----
+  async function loadMine() {
+    const name = $('mineOwner').value, pin = $('minePin').value;
+    msg('mineMsg', '');
+    if (!name || !pin) return msg('mineMsg', 'Choose your name and enter your PIN.', 'err');
+    try {
+      const rows = await rpc('my_picks', { p_owner: name, p_pin: pin });
+      remember(name, pin);
+      $('mineResults').classList.remove('hidden');
+      const pts = rows.reduce((s, r) => s + (r.locked ? Number(r.points) : 0), 0);
+      $('mineKpi').innerHTML = `<div><b>${fmt$(pts)}</b><span>Season points</span></div><div><b>${rows.length}</b><span>Golfers used</span></div><div><b>${tournaments.filter(t => !t.locked).length}</b><span>Events left</span></div>`;
+      $('mineTable').querySelector('tbody').innerHTML = rows.map(r => `
+        <tr><td>${esc(r.tournament)}</td><td>${fmtDate(r.start_date)}</td><td><b>${esc(r.golfer)}</b></td>
+            <td>${r.locked ? '<span class="tag lock">Final</span>' : '<span class="tag open">Can still change</span>'}</td>
+            <td class="num">${r.locked ? fmt$(r.winnings) : '—'}</td><td class="num">${r.locked ? fmt$(r.points) : '—'}</td></tr>`).join('')
+        || '<tr><td colspan="6" class="muted">No picks yet this season.</td></tr>';
+    } catch (e) { $('mineResults').classList.add('hidden'); msg('mineMsg', e.message, 'err'); }
+  }
+  $('mineLoad').addEventListener('click', loadMine);
+  $('minePin').addEventListener('keydown', e => { if (e.key === 'Enter') loadMine(); });
+  $('changePin').addEventListener('click', async () => {
+    try {
+      await rpc('change_pin', { p_owner: $('mineOwner').value, p_pin: $('minePin').value, p_new_pin: $('newPin').value });
+      $('minePin').value = $('newPin').value; $('pickPin').value = $('newPin').value; remember($('mineOwner').value, $('newPin').value); $('newPin').value = '';
+      msg('mineMsg', 'PIN updated.', 'ok');
+    } catch (e) { msg('mineMsg', e.message, 'err'); }
+  });
+
+  // ---- SEASON GRID ----
+  async function loadSeason() {
+    const [picks, boards] = await Promise.all([
+      rpc('season_picks'),
+      Promise.all(tournaments.filter(t => !t.locked).map(t => rpc('tournament_board', { p_tournament_id: t.id }).then(b => [t.id, b])))
+    ]);
+    const pending = Object.fromEntries(boards);
+    const byKey = {}; picks.forEach(p => byKey[p.tournament_id + '|' + p.owner] = p);
+    $('seasonTable').querySelector('thead').innerHTML = '<tr><th>Tournament</th>' + owners.map(o => `<th>${esc(o.name)}</th>`).join('') + '</tr>';
+    $('seasonTable').querySelector('tbody').innerHTML = tournaments.map(t => `<tr>
+      <td><b>${esc(t.name)}</b><br><span class="muted" style="font-size:12px">${fmtDate(t.start_date)} · ${Number(t.multiplier)}×</span></td>
+      ${owners.map(o => {
+        if (t.locked) { const p = byKey[t.id + '|' + o.name]; return p ? `<td class="pick">${esc(p.golfer)}<small>${fmt$(p.points)}</small></td>` : '<td class="muted">—</td>'; }
+        const b = (pending[t.id] || []).find(x => x.owner === o.name);
+        return `<td>${b?.has_picked ? '<span class="tag in">Picked</span>' : '<span class="muted">·</span>'}</td>`;
+      }).join('')}
+    </tr>`).join('');
+  }
+
+  // ---- COMMISSIONER ----
+  const apin = () => { const p = $('adminPin').value; if (!p) throw new Error('Enter the commissioner PIN first.'); return p; };
+  async function loadAdmin() {
+    $('ownerList').textContent = owners.length ? 'Current owners: ' + owners.map(o => o.name).join(', ') : 'No owners yet — add the first one below.';
+    const s = season || tournaments[0]?.season || new Date().getFullYear();
+    $('tSeason').value = s; $('setSeason').value = s;
+  }
+  async function loadAdminBoard() {
+    msg('adminResultsMsg', '');
+    const id = Number($('adminTournament').value); const t = tournaments.find(x => x.id === id);
+    if (!t.locked) { $('adminResults').querySelector('tbody').innerHTML = `<tr><td colspan="4" class="muted">This tournament hasn't locked yet — picks are still hidden (even from the commissioner). Come back after ${fmtWhen(t.lock_at)}.</td></tr>`; return; }
+    const board = await rpc('tournament_board', { p_tournament_id: id });
+    $('adminResults').querySelector('tbody').innerHTML = board.map(b => `<tr>
+      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}</td>
+      <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:160px">` : '—'}</td>
+      <td>${b.has_picked ? `<button class="btn ghost save-w" data-owner="${esc(b.owner)}">Save</button>` : ''}</td></tr>`).join('');
+  }
+  $('adminLoadBoard').addEventListener('click', () => loadAdminBoard().catch(e => msg('adminResultsMsg', e.message, 'err')));
+  $('adminResults').addEventListener('click', async e => {
+    const btn = e.target.closest('.save-w'); if (!btn) return;
+    const owner = btn.dataset.owner, val = $('adminResults').querySelector(`input[data-owner="${CSS.escape(owner)}"]`).value;
+    try { await rpc('admin_set_winnings', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value), p_owner: owner, p_winnings: Number(val || 0) }); msg('adminResultsMsg', `Saved ${owner}: ${fmt$(val)}.`, 'ok'); }
+    catch (err) { msg('adminResultsMsg', err.message, 'err'); }
+  });
+  $('ownerSave').addEventListener('click', async () => {
+    try { await rpc('admin_set_owner', { p_admin_pin: apin(), p_owner: $('ownerName').value, p_pin: $('ownerPin').value, p_active: $('ownerActive').value === 'true' });
+      msg('ownerMsg', `Saved ${$('ownerName').value}.`, 'ok'); $('ownerName').value = ''; $('ownerPin').value = ''; await loadShared(); await loadAdmin(); await loadBoard(); }
+    catch (e) { msg('ownerMsg', e.message, 'err'); }
+  });
+  $('tName').addEventListener('change', () => {           // prefill when editing an existing tournament
+    const t = tournaments.find(x => x.name === $('tName').value); if (!t) return;
+    $('tSeason').value = t.season; $('tOrder').value = tournaments.indexOf(t) + 1; $('tDate').value = t.start_date;
+    const d = new Date(t.lock_at); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); $('tLock').value = d.toISOString().slice(0, 16);
+    $('tPool').value = t.prize_pool; $('tMult').value = t.multiplier;
+  });
+  $('tDate').addEventListener('change', () => { if (!$('tLock').value && $('tDate').value) $('tLock').value = $('tDate').value + 'T07:00'; });
+  $('tSave').addEventListener('click', async () => {
+    try {
+      if (!$('tName').value || !$('tDate').value || !$('tLock').value || !$('tPool').value) throw new Error('Name, start date, lock time and prize pool are required.');
+      await rpc('admin_upsert_tournament', { p_admin_pin: apin(), p_season: Number($('tSeason').value), p_sort_order: Number($('tOrder').value || 99), p_name: $('tName').value,
+        p_start_date: $('tDate').value, p_lock_at: new Date($('tLock').value).toISOString(), p_prize_pool: Number($('tPool').value), p_multiplier: Number($('tMult').value || 1) });
+      msg('tMsg', `Saved ${$('tName').value}.`, 'ok'); await loadShared(); await loadBoard();
+    } catch (e) { msg('tMsg', e.message, 'err'); }
+  });
+  $('tDelete').addEventListener('click', async () => {
+    const t = tournaments.find(x => x.name === $('tName').value);
+    if (!t) return msg('tMsg', 'Pick an existing tournament name to delete.', 'err');
+    if (!confirm(`Delete ${t.name} and any picks made for it?`)) return;
+    try { await rpc('admin_delete_tournament', { p_admin_pin: apin(), p_tournament_id: t.id }); msg('tMsg', `Deleted ${t.name}.`, 'ok'); await loadShared(); await loadBoard(); }
+    catch (e) { msg('tMsg', e.message, 'err'); }
+  });
+  $('setSeasonBtn').addEventListener('click', async () => {
+    try { await rpc('admin_set_season', { p_admin_pin: apin(), p_season: Number($('setSeason').value) }); msg('settingsMsg', 'Season updated.', 'ok'); await loadShared(); await loadBoard(); }
+    catch (e) { msg('settingsMsg', e.message, 'err'); }
+  });
+  $('newAdminPinBtn').addEventListener('click', async () => {
+    try { await rpc('admin_set_admin_pin', { p_admin_pin: apin(), p_new_pin: $('newAdminPin').value }); $('adminPin').value = $('newAdminPin').value; $('newAdminPin').value = ''; msg('settingsMsg', 'Commissioner PIN changed.', 'ok'); }
+    catch (e) { msg('settingsMsg', e.message, 'err'); }
+  });
+
+  // ---- boot ----
+  (async () => {
+    try {
+      await loadShared();
+      await loadBoard();
+      const v = location.hash.replace('#', '');
+      if (views.includes(v) && v !== 'board') show(v);
+    } catch (e) { msg('pickMsg', e.message, 'err'); }
+  })();
+})();
+</script>
+</body>
+</html>
