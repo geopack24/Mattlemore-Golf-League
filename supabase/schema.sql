@@ -64,7 +64,7 @@ revoke all on all tables in schema public from anon, authenticated;
 -- ---------- Helpers ------------------------------------------------------
 
 create or replace function _owner_id(p_owner text, p_pin text)
-returns int language plpgsql security definer set search_path = public as $$
+returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int;
 begin
   select id into v_id from owners
@@ -77,7 +77,7 @@ begin
 end $$;
 
 create or replace function _check_admin(p_pin text)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 declare v_hash text;
 begin
   select value into v_hash from settings where key = 'admin_pin_hash';
@@ -87,7 +87,7 @@ begin
 end $$;
 
 create or replace function current_season()
-returns int language sql stable security definer set search_path = public as $$
+returns int language sql stable security definer set search_path = public, extensions as $$
   select coalesce((select value::int from settings where key = 'current_season'),
                   (select max(season) from tournaments), extract(year from now())::int);
 $$;
@@ -95,14 +95,14 @@ $$;
 -- ---------- Public read functions ---------------------------------------
 
 create or replace function list_owners()
-returns table (name text) language sql stable security definer set search_path = public as $$
+returns table (name text) language sql stable security definer set search_path = public, extensions as $$
   select name from owners where active order by name;
 $$;
 
 create or replace function list_tournaments(p_season int default null)
 returns table (id int, name text, start_date date, lock_at timestamptz,
                prize_pool numeric, multiplier numeric, locked boolean, season int)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select id, name, start_date, lock_at, prize_pool, multiplier, now() >= lock_at, season
     from tournaments
    where season = coalesce(p_season, current_season())
@@ -113,7 +113,7 @@ $$;
 -- tournament. Unlocked picks never appear here, or a new name would give away
 -- someone's pick before lock.
 create or replace function list_golfers()
-returns table (name text) language sql stable security definer set search_path = public as $$
+returns table (name text) language sql stable security definer set search_path = public, extensions as $$
   select name from golfers
   union
   select p.golfer from picks p join tournaments t on t.id = p.tournament_id where now() >= t.lock_at
@@ -124,7 +124,7 @@ $$;
 create or replace function tournament_board(p_tournament_id int)
 returns table (owner text, has_picked boolean, golfer text, winnings numeric,
                points numeric, submitted_at timestamptz)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select o.name,
          p.id is not null,
          case when now() >= t.lock_at then p.golfer end,
@@ -140,7 +140,7 @@ $$;
 
 create or replace function standings(p_season int default null)
 returns table (owner text, points numeric, picks_made int, wins int, best_week numeric)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   with s as (select coalesce(p_season, current_season()) as season)
   select o.name,
          coalesce(sum(case when now() >= t.lock_at then p.winnings * t.multiplier end), 0),
@@ -159,7 +159,7 @@ $$;
 -- All revealed picks for the season (for the history grid).
 create or replace function season_picks(p_season int default null)
 returns table (tournament_id int, owner text, golfer text, winnings numeric, points numeric)
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, extensions as $$
   select t.id, o.name, p.golfer, p.winnings, p.winnings * t.multiplier
     from picks p
     join tournaments t on t.id = p.tournament_id
@@ -172,7 +172,7 @@ $$;
 create or replace function my_picks(p_owner text, p_pin text, p_season int default null)
 returns table (tournament_id int, tournament text, start_date date, golfer text,
                winnings numeric, points numeric, locked boolean, submitted_at timestamptz)
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
@@ -184,7 +184,7 @@ begin
 end $$;
 
 create or replace function submit_pick(p_owner text, p_pin text, p_tournament_id int, p_golfer text)
-returns json language plpgsql security definer set search_path = public as $$
+returns json language plpgsql security definer set search_path = public, extensions as $$
 declare
   v_owner  int := _owner_id(p_owner, p_pin);
   v_t      tournaments%rowtype;
@@ -226,7 +226,7 @@ begin
 end $$;
 
 create or replace function change_pin(p_owner text, p_pin text, p_new_pin text)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   if p_new_pin !~ '^\d{4,8}$' then raise exception 'PIN must be 4–8 digits'; end if;
@@ -236,7 +236,7 @@ end $$;
 -- ---------- Commissioner functions (need admin PIN) ----------------------
 
 create or replace function admin_set_owner(p_admin_pin text, p_owner text, p_pin text, p_active boolean default true)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   if p_pin !~ '^\d{4,8}$' then raise exception 'PIN must be 4–8 digits'; end if;
@@ -246,7 +246,7 @@ begin
 end $$;
 
 create or replace function admin_set_winnings(p_admin_pin text, p_tournament_id int, p_owner text, p_winnings numeric)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   update picks p set winnings = coalesce(p_winnings, 0), updated_at = now()
@@ -258,7 +258,7 @@ end $$;
 create or replace function admin_upsert_tournament(p_admin_pin text, p_season int, p_sort_order int, p_name text,
                                                    p_start_date date, p_lock_at timestamptz,
                                                    p_prize_pool numeric, p_multiplier numeric)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   insert into tournaments (season, sort_order, name, start_date, lock_at, prize_pool, multiplier)
@@ -269,14 +269,14 @@ begin
 end $$;
 
 create or replace function admin_delete_tournament(p_admin_pin text, p_tournament_id int)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   delete from tournaments where id = p_tournament_id;
 end $$;
 
 create or replace function admin_set_admin_pin(p_admin_pin text, p_new_pin text)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   if p_new_pin !~ '^\d{4,8}$' then raise exception 'PIN must be 4–8 digits'; end if;
@@ -284,7 +284,7 @@ begin
 end $$;
 
 create or replace function admin_set_season(p_admin_pin text, p_season int)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   insert into settings (key, value) values ('current_season', p_season::text)

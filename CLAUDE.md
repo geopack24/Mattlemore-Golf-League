@@ -20,7 +20,7 @@ Static one-page site (GitHub Pages) + Supabase (Postgres) backend for GP's fanta
 ## Security model — keep it this way
 - The browser holds only the anon key. **All tables have RLS on and zero grants to anon/authenticated.** Nothing is readable or writable directly.
 - Every read/write goes through `security definer` functions; only those are granted to `anon`. Owner functions take `(p_owner, p_pin)` and call `_owner_id()`; commissioner functions take `p_admin_pin` and call `_check_admin()`. PINs are hashed with pgcrypto `crypt()`.
-- When adding a function: `security definer set search_path = public`, add it to the `grant execute ... to anon, authenticated` list at the end of the schema, and never expose an unlocked golfer name from it.
+- When adding a function: `security definer set search_path = public, extensions` (Supabase installs pgcrypto in `extensions`; plain `public` breaks `crypt()` — bit us on launch day), add it to the `grant execute ... to anon, authenticated` list at the end of the schema, and never expose an unlocked golfer name from it.
 - Frontend calls functions with `sb.rpc(name, {p_...})` via the `rpc()` helper in index.html; errors thrown there surface as user-facing messages.
 
 ## Frontend structure (index.html)
