@@ -148,6 +148,11 @@
   .tcg-foot label{color:#c9b8e8}
   .tcg-foot .f{flex:1 1 140px}
   .tcg.played{filter:saturate(.85)}
+  .tcg.retired{opacity:.55;filter:grayscale(.7)}
+  .lib-meta{font-size:12px;color:var(--muted);margin-bottom:8px;font-style:italic}
+  .lib-meta b{color:var(--ink);font-style:normal}
+  label.chk{display:flex;align-items:center;gap:8px;font-family:"Cormorant Garamond",serif;font-size:15px;text-transform:none;letter-spacing:0;color:var(--muted);margin:0}
+  label.chk input{width:auto}
   td small.note{display:block;font-size:12px;color:var(--leaf);font-style:italic;font-weight:500;white-space:normal;max-width:260px}
   footer{text-align:center;color:var(--muted);font-size:14px;font-style:italic;padding:10px 20px 34px;letter-spacing:.3px}
   footer b{font-family:var(--display);font-style:normal;font-weight:700;letter-spacing:2px;color:var(--gold);text-transform:uppercase;font-size:12px}
@@ -335,8 +340,15 @@
     </div>
 
     <div class="card">
-      <h2>Deal a card</h2>
-      <p class="sub">Only the owner you deal it to can see it. Choose the effect that matches the card's rules and the scoring applies itself when the card is played.</p>
+      <h2>Card library</h2>
+      <p class="sub">Every card design the league has ever seen, kept season to season. Deal a copy to anyone, edit the design, or retire it from the pool.</p>
+      <div class="hand mini" id="library"></div>
+      <div id="libMsg"></div>
+    </div>
+
+    <div class="card">
+      <h2 id="dcTitle">Design a card</h2>
+      <p class="sub">Choose the effect that matches the card's rules and the scoring applies itself when the card is played. New designs go into the library so they can be dealt again next season.</p>
       <div class="row">
         <div class="f"><label>Deal to</label><select id="dcOwner"></select></div>
         <div class="f"><label>Card name</label><input id="dcName" placeholder="Ryder Die"></div>
@@ -352,7 +364,12 @@
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Flavor text</label><input id="dcFlavor" placeholder="“Dying is easy, young man. Golf is harder.”"></div>
         <div class="f"><label>Artwork</label><input id="dcImage" type="file" accept="image/*"></div>
+      </div>
+      <div class="row" style="margin-top:12px;align-items:center">
         <div><button class="btn" id="dcDeal">Deal card</button></div>
+        <div><button class="btn ghost" id="dcSave">Save to library</button></div>
+        <label class="chk"><input type="checkbox" id="dcSaveLib" checked> also save to library when dealing</label>
+        <div><button class="btn ghost hidden" id="dcCancel" style="padding:7px 12px">Cancel edit</button></div>
       </div>
       <div id="dcMsg"></div>
       <div class="grid2" style="margin-top:14px">
@@ -712,18 +729,33 @@
     $('tSeason').value = s; $('setSeason').value = s;
     if (!$('chSeason').value) $('chSeason').value = s - 1;
     $('chOwners').innerHTML = owners.map(o => `<option value="${esc(o.name)}">`).join('');
-    dcSync(); loadAdminCards().catch(() => {});
+    dcSync(); loadAdminCards().catch(() => {}); loadLibrary().catch(() => {});
   }
   // ---- deal cards ----
-  let dcImageData = null;
+  let dcImageData = null, dcLibId = null, dcLibImage = null;   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
   $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
   const dcParams = () => { const e = EFFECTS[$('dcEffect').value]; const v = $('dcParam').value; return e.param && v !== '' ? { [e.param]: Number(v) } : {}; };
   function dcSync() {
     const e = EFFECTS[$('dcEffect').value];
     $('dcParamWrap').classList.toggle('hidden', !e.param); $('dcParamLabel').textContent = e.paramLabel || 'Value';
     $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: dcParams(),
-      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData });
+      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage });
   }
+  const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
+    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData });
+  function dcReset() {
+    ['dcName','dcRules','dcFlavor','dcParam','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment';
+    dcImageData = null; dcLibId = null; dcLibImage = null;
+    $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
+  }
+  $('dcCancel').addEventListener('click', dcReset);
+  $('dcSave').addEventListener('click', async () => {
+    try {
+      const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
+      msg('dcMsg', `${dcLibId ? 'Updated' : 'Added'} “${$('dcName').value}” ${dcLibId ? 'in' : 'to'} the library.`, 'ok');
+      dcReset(); await loadLibrary();
+    } catch (e) { msg('dcMsg', e.message, 'err'); }
+  });
   ['dcName','dcKind','dcEffect','dcParam','dcRules','dcFlavor'].forEach(id => $(id).addEventListener('input', dcSync));
   $('dcImage').addEventListener('change', () => {
     const f = $('dcImage').files[0]; if (!f) { dcImageData = null; dcSync(); return; }
@@ -738,12 +770,53 @@
   });
   $('dcDeal').addEventListener('click', async () => {
     try {
-      await rpc('admin_deal_card', { p_admin_pin: apin(), p_owner: $('dcOwner').value, p_name: $('dcName').value, p_kind: $('dcKind').value,
-        p_effect: $('dcEffect').value, p_params: dcParams(), p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData });
-      msg('dcMsg', `Dealt “${$('dcName').value}” to ${$('dcOwner').value}.`, 'ok');
-      ['dcName','dcRules','dcFlavor','dcParam','dcImage'].forEach(id => $(id).value = ''); dcImageData = null; dcSync();
-      await loadAdminCards();
+      const name = $('dcName').value, owner = $('dcOwner').value;
+      if (dcLibId !== null || $('dcSaveLib').checked) {
+        const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
+        await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: id, p_owner: owner });
+      } else {
+        await rpc('admin_deal_card', { p_admin_pin: apin(), p_owner: owner, ...dcFields() });
+      }
+      msg('dcMsg', `Dealt “${name}” to ${owner}.`, 'ok');
+      dcReset(); await Promise.all([loadAdminCards(), loadLibrary()]);
     } catch (e) { msg('dcMsg', e.message, 'err'); }
+  });
+  // ---- card library ----
+  let libRows = [];
+  async function loadLibrary() {
+    if (!$('adminPin').value) return;
+    libRows = await rpc('admin_list_library', { p_admin_pin: apin() });
+    const ownerOpts = owners.map(o => `<option>${esc(o.name)}</option>`).join('');
+    $('library').innerHTML = libRows.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
+      <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b> in hands${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
+      <div class="row">
+        ${l.retired ? '' : `<div class="f"><select class="lib-owner">${ownerOpts}</select></div><div><button class="btn lib-deal" data-id="${l.id}" style="padding:8px 12px">Deal</button></div>`}
+        <div><button class="btn ghost lib-edit" data-id="${l.id}" style="padding:7px 10px">Edit</button></div>
+        <div><button class="btn ghost lib-retire" data-id="${l.id}" data-retired="${l.retired}" style="padding:7px 10px">${l.retired ? 'Restore' : 'Retire'}</button></div>
+      </div>`)).join('')
+      || '<div class="empty" style="grid-column:1/-1">The library is empty. Design a card below — it lands here and can be dealt every season after.</div>';
+  }
+  $('library').addEventListener('click', async e => {
+    const deal = e.target.closest('.lib-deal'), edit = e.target.closest('.lib-edit'), ret = e.target.closest('.lib-retire');
+    if (!deal && !edit && !ret) return;
+    try {
+      if (deal) {
+        const owner = deal.closest('.tcg').querySelector('.lib-owner').value;
+        await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: Number(deal.dataset.id), p_owner: owner });
+        msg('libMsg', `Dealt to ${owner}.`, 'ok'); await Promise.all([loadLibrary(), loadAdminCards()]);
+      } else if (edit) {
+        const l = libRows.find(x => x.id === Number(edit.dataset.id)); if (!l) return;
+        dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
+        $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
+        const ef = EFFECTS[l.effect]; $('dcParam').value = ef?.param && l.params?.[ef.param] != null ? l.params[ef.param] : '';
+        $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
+        $('dcTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else {
+        const retired = ret.dataset.retired !== 'true';
+        await rpc('admin_retire_library_card', { p_admin_pin: apin(), p_id: Number(ret.dataset.id), p_retired: retired });
+        msg('libMsg', retired ? 'Retired from the pool (kept for history).' : 'Back in the pool.', 'ok'); await loadLibrary();
+      }
+    } catch (err) { msg('libMsg', err.message, 'err'); }
   });
   async function loadAdminCards() {
     if (!$('adminPin').value) return;
@@ -760,7 +833,7 @@
     try { await rpc('admin_revoke_card', { p_admin_pin: apin(), p_card_id: Number(b.dataset.id) }); await loadAdminCards(); }
     catch (err) { msg('dcMsg', err.message, 'err'); }
   });
-  $('adminPin').addEventListener('change', () => loadAdminCards().catch(() => {}));
+  $('adminPin').addEventListener('change', () => { loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); });
   $('chSave').addEventListener('click', async () => {
     try {
       if (!$('chSeason').value || !$('chOwner').value.trim()) throw new Error('Season and champion name are required.');

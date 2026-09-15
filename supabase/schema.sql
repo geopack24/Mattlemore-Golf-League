@@ -48,6 +48,20 @@ create table if not exists settings (
   value text not null
 );
 
+create table if not exists card_library (        -- the pool of card designs, kept across seasons
+  id          serial primary key,
+  name        text not null,
+  kind        text not null default 'Enchantment',
+  effect      text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom')),
+  params      jsonb not null default '{}',
+  rules       text,
+  flavor      text,
+  image       text,
+  retired     boolean not null default false,     -- hidden from the deal list, never deleted
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+
 create table if not exists cards (               -- commissioner's TCG-style enchantments, dealt to owners
   id              serial primary key,
   owner_id        int  not null references owners(id) on delete cascade,
@@ -65,6 +79,7 @@ create table if not exists cards (               -- commissioner's TCG-style enc
   played_at       timestamptz
 );
 create unique index if not exists cards_one_in_play_per_week on cards (owner_id, tournament_id) where status = 'played';
+alter table cards add column if not exists library_id int references card_library(id) on delete set null;
 
 create table if not exists champions (           -- The White Stag Club: one league champion per season
   season int primary key,
@@ -85,6 +100,7 @@ alter table golfers     enable row level security;
 alter table settings    enable row level security;
 alter table champions   enable row level security;
 alter table cards       enable row level security;
+alter table card_library enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
 
@@ -540,6 +556,72 @@ begin
   return v_id;
 end $$;
 
+-- ---------- Card library (the pool) ----------------------------------------
+
+create or replace function admin_list_library(p_admin_pin text)
+returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
+               retired boolean, times_dealt int, in_play int, created_at timestamptz)
+language plpgsql stable security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  return query
+    select l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.retired,
+           (select count(*) from cards c where c.library_id = l.id and c.status <> 'revoked')::int,
+           (select count(*) from cards c where c.library_id = l.id and c.status = 'held')::int,
+           l.created_at
+      from card_library l
+     order by l.retired, lower(l.name);
+end $$;
+
+-- Create (p_id null) or update a library card. A null p_image on update keeps the existing artwork.
+create or replace function admin_save_library_card(p_admin_pin text, p_id int, p_name text, p_kind text, p_effect text,
+                                                   p_params jsonb default '{}', p_rules text default null,
+                                                   p_flavor text default null, p_image text default null)
+returns int language plpgsql security definer set search_path = public, extensions as $$
+declare v_id int;
+begin
+  perform _check_admin(p_admin_pin);
+  if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
+  if p_id is null then
+    insert into card_library (name, kind, effect, params, rules, flavor, image)
+    values (trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect, coalesce(p_params, '{}'),
+            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''))
+    returning id into v_id;
+  else
+    update card_library
+       set name = trim(p_name), kind = coalesce(nullif(trim(p_kind), ''), 'Enchantment'), effect = p_effect,
+           params = coalesce(p_params, '{}'), rules = nullif(trim(p_rules), ''), flavor = nullif(trim(p_flavor), ''),
+           image = coalesce(nullif(p_image, ''), image), updated_at = now()
+     where id = p_id returning id into v_id;
+    if v_id is null then raise exception 'No such library card'; end if;
+  end if;
+  return v_id;
+end $$;
+
+create or replace function admin_retire_library_card(p_admin_pin text, p_id int, p_retired boolean default true)
+returns void language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  update card_library set retired = p_retired, updated_at = now() where id = p_id;
+  if not found then raise exception 'No such library card'; end if;
+end $$;
+
+-- Deal a copy of a library card to an owner.
+create or replace function admin_deal_from_library(p_admin_pin text, p_library_id int, p_owner text)
+returns int language plpgsql security definer set search_path = public, extensions as $$
+declare v_owner int; v_id int; l card_library%rowtype;
+begin
+  perform _check_admin(p_admin_pin);
+  select * into l from card_library cl where cl.id = p_library_id;
+  if l.id is null then raise exception 'No such library card'; end if;
+  select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
+  if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
+  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image)
+  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image)
+  returning id into v_id;
+  return v_id;
+end $$;
+
 create or replace function admin_list_cards(p_admin_pin text)
 returns table (id int, owner text, name text, kind text, effect text, params jsonb, status text,
                tournament text, target text, dealt_at timestamptz, has_image boolean)
@@ -588,6 +670,8 @@ grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
   my_cards(text, text), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text), admin_list_cards(text), admin_revoke_card(text, int),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text),
+  admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),
   admin_set_winnings(text, int, text, numeric),

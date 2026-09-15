@@ -83,8 +83,10 @@ scoring always uses the winnings you enter. Fix any of them — or add/remove a 
 
 ## Cards (the commissioner's enchantments)
 
-Commissioner tab → **Deal a card**: pick the owner, name the card, choose its **effect** (multiply my points,
-bonus/penalty, duel, steal %, swap, shield, mulligan, or custom), add the rules and flavor text and the artwork.
+Commissioner tab → **Design a card**: name the card, choose its **effect** (multiply my points,
+bonus/penalty, duel, steal %, swap, shield, mulligan, or custom), add the rules and flavor text and the artwork,
+then **Deal card** to an owner. New designs are saved to the **Card library** — the league's permanent pool — so
+any card can be dealt again to anyone, this season or next. From the library you can also edit a design or retire it.
 Only that owner can see the card, under **My Cards** (name + PIN). They play it on an upcoming week — and pick an
 opponent if the card needs one — and it stays secret until that tournament locks. Then it shows up on **This Week**
 under "Cards in play" and the points are recalculated automatically; every affected score carries a note saying what
