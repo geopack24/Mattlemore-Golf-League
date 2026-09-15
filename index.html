@@ -784,7 +784,7 @@
   // ---- card library ----
   let libRows = [];
   async function loadLibrary() {
-    if (!$('adminPin').value) return;
+    if (!$('adminPin').value) { $('library').innerHTML = '<div class="empty" style="grid-column:1/-1">Enter the commissioner PIN above to open the library.</div>'; return; }
     libRows = await rpc('admin_list_library', { p_admin_pin: apin() });
     const ownerOpts = owners.map(o => `<option>${esc(o.name)}</option>`).join('');
     $('library').innerHTML = libRows.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
