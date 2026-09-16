@@ -398,7 +398,7 @@
       <div class="row" style="margin-top:12px;align-items:center">
         <div><button class="btn" id="dcDeal">Deal card</button></div>
         <div><button class="btn ghost" id="dcSave">Save to library</button></div>
-        <label class="chk"><input type="checkbox" id="dcSaveLib" checked> also save to library when dealing</label>
+        <span class="hint" style="margin:0">Every design lives in the library; dealing adds it there too.</span>
         <div><button class="btn ghost hidden" id="dcCancel" style="padding:7px 12px">Cancel edit</button></div>
       </div>
       <div id="dcMsg"></div>
@@ -487,7 +487,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-5';
+  const BUILD = '2026-09-16-6';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -913,12 +913,9 @@
   $('dcDeal').addEventListener('click', async () => {
     try {
       const name = $('dcName').value, owner = $('dcOwner').value;
-      if (dcLibId !== null || $('dcSaveLib').checked) {
-        const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
-        await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: id, p_owner: owner });
-      } else {
-        await rpc('admin_deal_card', { p_admin_pin: apin(), p_owner: owner, ...dcFields() });
-      }
+      // every design goes through the library, so a dealt card can always be found and re-dealt
+      const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
+      await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: id, p_owner: owner });
       msg('dcMsg', `Dealt “${name}” to ${owner}.`, 'ok');
       if (dcLibId !== null) dcKeepEditing(dcLibId); else dcReset();
       await Promise.all([loadAdminCards(), loadLibrary()]);
