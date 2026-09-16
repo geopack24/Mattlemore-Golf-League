@@ -7,7 +7,7 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦌</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg-0:#110a1e; --bg-1:#1a1030; --bg-2:#251646; --bg-3:#2f1c58;
@@ -132,32 +132,40 @@
   /* ---- cards (TCG frames — mirrors the league's printed cards: black body, gold filigree, parchment panels) ---- */
   .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
   .hand.mini{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
-  .tcg{--parch:#e7dcbd;--parch-2:#d6c69c;--cgold:#b8934a;--cgold-2:#7a5c22;--inkc:#1a1208;
-    position:relative;display:grid;grid-template-rows:auto minmax(0,10fr) auto minmax(0,7fr);gap:8px;aspect-ratio:2/3;min-height:0;
-    background:radial-gradient(120% 90% at 50% 0%,#242424,#0e0e0e 70%);border-radius:14px;padding:14px;color:var(--inkc);
-    box-shadow:0 0 0 1px #000,0 0 0 3px var(--cgold-2),0 0 0 4px #241c0c,0 22px 44px -18px rgba(0,0,0,.95);font-family:"Cormorant Garamond",Georgia,serif}
-  .tcg::before{content:"";position:absolute;inset:6px;border:1px solid var(--cgold);border-radius:10px;pointer-events:none;opacity:.9;
-    background:
-      radial-gradient(circle at 0 0,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 0 0/22px 22px no-repeat,
-      radial-gradient(circle at 100% 0,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 100% 0/22px 22px no-repeat,
-      radial-gradient(circle at 0 100%,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 0 100%/22px 22px no-repeat,
-      radial-gradient(circle at 100% 100%,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 100% 100%/22px 22px no-repeat}
-  .tcg-title{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:6px 12px;box-shadow:inset 0 0 0 1px var(--cgold),0 2px 0 rgba(0,0,0,.4)}
-  .tcg-art{min-height:0;border:2px solid #2b1f0c;border-radius:8px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--cgold)}
+  /* Sizes are in cqw (percent of card width) so every card scales like a print: title bar ≈7% of height,
+     art ≈46%, type line ≈6%, text box ≈31%, measured off the league's painted cards. */
+  .tcg{--parch:#e4d7b3;--parch-2:#d2c193;--parch-hi:#efe5c8;--cgold:#c29d52;--cgold-2:#6b4f1d;--frame:#2a1d0a;--inkc:#1b1408;
+    --noise:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .1 0 0 0 .13 0'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+    --curl-bl:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg fill='none' stroke='%23c29d52' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M3 37 C3 21 9 9 23 5 C29 3.5 35 6 37 11 C32 8.5 27 9.5 24 13.5 C20 19 22 25 18 29.5 C14.5 33.5 9 36 3 37Z'/%3E%3Cpath d='M9 31 C10 25 13 21 18 19'/%3E%3C/g%3E%3Ccircle cx='6.5' cy='6.5' r='1.7' fill='%23c29d52'/%3E%3C/svg%3E");
+    --curl-tl:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg transform='rotate(90 20 20)'%3E%3Cg fill='none' stroke='%23c29d52' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M3 37 C3 21 9 9 23 5 C29 3.5 35 6 37 11 C32 8.5 27 9.5 24 13.5 C20 19 22 25 18 29.5 C14.5 33.5 9 36 3 37Z'/%3E%3Cpath d='M9 31 C10 25 13 21 18 19'/%3E%3C/g%3E%3Ccircle cx='6.5' cy='6.5' r='1.7' fill='%23c29d52'/%3E%3C/g%3E%3C/svg%3E");
+    --curl-tr:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg transform='rotate(180 20 20)'%3E%3Cg fill='none' stroke='%23c29d52' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M3 37 C3 21 9 9 23 5 C29 3.5 35 6 37 11 C32 8.5 27 9.5 24 13.5 C20 19 22 25 18 29.5 C14.5 33.5 9 36 3 37Z'/%3E%3Cpath d='M9 31 C10 25 13 21 18 19'/%3E%3C/g%3E%3Ccircle cx='6.5' cy='6.5' r='1.7' fill='%23c29d52'/%3E%3C/g%3E%3C/svg%3E");
+    --curl-br:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cg transform='rotate(270 20 20)'%3E%3Cg fill='none' stroke='%23c29d52' stroke-width='1.7' stroke-linecap='round'%3E%3Cpath d='M3 37 C3 21 9 9 23 5 C29 3.5 35 6 37 11 C32 8.5 27 9.5 24 13.5 C20 19 22 25 18 29.5 C14.5 33.5 9 36 3 37Z'/%3E%3Cpath d='M9 31 C10 25 13 21 18 19'/%3E%3C/g%3E%3Ccircle cx='6.5' cy='6.5' r='1.7' fill='%23c29d52'/%3E%3C/g%3E%3C/svg%3E");
+    container-type:inline-size;position:relative;display:grid;grid-template-rows:7fr 46fr 6fr 31fr;gap:2.4cqw;aspect-ratio:2/3;min-height:0;
+    padding:7cqw 6cqw;border-radius:4.5cqw;color:var(--inkc);
+    background:radial-gradient(130% 80% at 50% -10%,#232323,#0a0a0a 70%);
+    box-shadow:0 0 0 1px #000,0 22px 44px -18px rgba(0,0,0,.95);font-family:"EB Garamond","Cormorant Garamond",Georgia,serif}
+  .tcg::before{content:"";position:absolute;inset:2.4cqw;border:.45cqw solid var(--cgold);border-radius:3.2cqw;pointer-events:none;
+    box-shadow:0 0 0 .5cqw #0a0a0a,0 0 0 .7cqw var(--cgold-2),inset 0 0 0 .5cqw #0a0a0a,inset 0 0 0 .7cqw var(--cgold-2)}
+  .tcg::after{content:"";position:absolute;inset:3.6cqw;pointer-events:none;
+    background:var(--curl-bl) 0 100%/8cqw 8cqw no-repeat,var(--curl-br) 100% 100%/8cqw 8cqw no-repeat,var(--curl-tl) 0 0/8cqw 8cqw no-repeat,var(--curl-tr) 100% 0/8cqw 8cqw no-repeat}
+  .tcg-title,.tcg-type,.tcg-text{background:var(--noise),linear-gradient(180deg,var(--parch-hi),var(--parch) 55%,var(--parch-2));
+    border:.55cqw solid var(--frame);border-radius:2.4cqw;box-shadow:inset 0 0 0 .3cqw var(--cgold),inset 0 .6cqw 1.2cqw rgba(0,0,0,.14),0 .4cqw 0 rgba(0,0,0,.5)}
+  .tcg-title{display:flex;align-items:center;padding:0 3.6cqw;font-weight:600;font-size:6.4cqw;letter-spacing:.1cqw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tcg-art{min-height:0;border:.55cqw solid var(--frame);border-radius:2.4cqw;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 .3cqw var(--cgold),0 .4cqw 0 rgba(0,0,0,.5)}
   .tcg-art img{width:100%;height:100%;object-fit:cover;display:block}
   .tcg-art .crest{width:55%;height:55%;opacity:.9}
-  .tcg-type{font-weight:700;font-size:15px;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:5px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;box-shadow:inset 0 0 0 1px var(--cgold)}
-  .tcg-type span{font-weight:600;font-size:13px;color:#5a4620;text-align:right;font-style:italic}
-  .tcg-text{min-height:0;overflow:hidden;background:linear-gradient(180deg,var(--parch),var(--parch-2));border:2px solid #2b1f0c;border-radius:9px;padding:10px 12px;font-size:16px;line-height:1.3;font-weight:500;box-shadow:inset 0 0 0 1px var(--cgold)}
-  .tcg-text p{margin:0 0 10px}
+  .tcg-type{display:flex;justify-content:space-between;gap:2cqw;align-items:center;padding:0 3.6cqw;font-weight:600;font-size:5.4cqw}
+  .tcg-type span{font-weight:500;font-size:3.5cqw;color:#5a4620;text-align:right;font-style:italic;line-height:1.15}
+  .tcg-text{min-height:0;overflow:hidden;padding:3cqw 3.8cqw;font-size:5cqw;line-height:1.25;font-weight:500}
+  .tcg-text p{margin:0 0 2.4cqw}
   .tcg-text p:last-child{margin:0}
-  .tcg-text .fl{font-style:italic;color:#4a3a14;border-top:1px solid rgba(43,31,12,.25);padding-top:8px}
+  .tcg-text .fl{font-style:italic;color:#3e3012;padding-top:2cqw;border-top:1px solid rgba(43,31,12,.25)}
   .cardwrap{display:flex;flex-direction:column}
   .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
   .tcg-foot label{color:#c9b8e8}
   .tcg-foot .f{flex:1 1 140px}
   .tcg.full{display:block;aspect-ratio:auto;padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
-  .tcg.full::before{display:none}
+  .tcg.full::before,.tcg.full::after{display:none}
   .tcg.full > img{display:block;width:100%;border-radius:14px}
   .tcg.played{filter:saturate(.85)}
   .tcg.retired{opacity:.55;filter:grayscale(.7)}
@@ -347,7 +355,8 @@
       <h2>Enter results</h2>
       <p class="sub">Type each golfer's actual prize money for the week. Points are calculated automatically.</p>
       <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div></div>
-      <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th></th><th class="num">Points after cards</th></tr></thead><tbody></tbody></table></div>
+      <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th>Adjustment ($)</th><th>Why</th><th></th><th class="num">Points after cards</th></tr></thead><tbody></tbody></table></div>
+      <p class="hint">Adjustment: your ruling for anything the cards can't compute (a "custom" card, a judgment call, a correction). Applied after every card; the note shows in the scoring breakdown.</p>
       <div id="adminResultsMsg"></div>
     </div>
 
@@ -466,7 +475,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-2';
+  const BUILD = '2026-09-16-3';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -514,7 +523,7 @@
                   sum: p => `Partner up: +${fmt$(p.amount ?? 500000)} each — $0 for both if either misses the cut` },
     shield:     { label: 'Shield', params: [], sum: () => "Rivals' cards cannot touch me this week" },
     mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
-    custom:     { label: 'Custom (commissioner applies by hand)', params: [], sum: () => 'Commissioner applies the effect by hand' },
+    custom:     { label: 'Custom (commissioner rules on it at results time)', params: [], sum: () => 'Commissioner rules on it when entering results' },
   };
   function tcgHTML(c, foot) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
@@ -529,10 +538,14 @@
   }
   // Cards keep a fixed 2:3 shape; long rules text shrinks (down to 9px) instead of stretching the card.
   function fitCards(root = document) {
+    const shrink = (el, horizontal, min) => {              // start from the CSS (cqw) size, step down only if it overflows
+      el.style.fontSize = ''; let s = parseFloat(getComputedStyle(el).fontSize);
+      const over = () => horizontal ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1;
+      while (over() && s > min) { s -= 0.5; el.style.fontSize = s + 'px'; }
+    };
     requestAnimationFrame(() => root.querySelectorAll('.tcg:not(.full)').forEach(card => {
       const t = card.querySelector('.tcg-text'), h = card.querySelector('.tcg-title');
-      if (t) { let s = 16; t.style.fontSize = s + 'px'; while (t.scrollHeight > t.clientHeight + 1 && s > 9) { s -= 0.5; t.style.fontSize = s + 'px'; } }
-      if (h) { let s = 17; h.style.fontSize = s + 'px'; while (h.scrollWidth > h.clientWidth + 1 && s > 11) { s -= 0.5; h.style.fontSize = s + 'px'; } }
+      if (t) shrink(t, false, 8); if (h) shrink(h, true, 10);
     }));
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
@@ -922,19 +935,26 @@
   async function loadAdminBoard() {
     msg('adminResultsMsg', '');
     const id = Number($('adminTournament').value); const t = tournaments.find(x => x.id === id);
-    if (!t.locked) { $('adminResults').querySelector('tbody').innerHTML = `<tr><td colspan="5" class="muted">This tournament hasn't locked yet — picks are still hidden (even from the commissioner). Come back after ${fmtWhen(t.lock_at)}.</td></tr>`; return; }
+    if (!t.locked) { $('adminResults').querySelector('tbody').innerHTML = `<tr><td colspan="7" class="muted">This tournament hasn't locked yet — picks are still hidden (even from the commissioner). Come back after ${fmtWhen(t.lock_at)}.</td></tr>`; return; }
     const board = await rpc('tournament_board', { p_tournament_id: id });
     $('adminResults').querySelector('tbody').innerHTML = board.map(b => `<tr>
       <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}</td>
-      <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:160px">` : '—'}</td>
+      <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:150px">` : '—'}</td>
+      <td>${b.has_picked ? `<input type="number" step="1" class="adj" data-owner="${esc(b.owner)}" value="${Number(b.adjust) || 0}" style="max-width:130px">` : ''}</td>
+      <td>${b.has_picked ? `<input type="text" class="adj-note" data-owner="${esc(b.owner)}" value="${esc(b.adjust_note || '')}" placeholder="e.g. Ring of the Covenant" style="min-width:160px">` : ''}</td>
       <td>${b.has_picked ? `<button class="btn ghost save-w" data-owner="${esc(b.owner)}">Save</button>` : ''}</td>
       <td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${esc(b.note)}</small>` : ''}</td></tr>`).join('');
   }
   $('adminLoadBoard').addEventListener('click', () => loadAdminBoard().catch(e => msg('adminResultsMsg', e.message, 'err')));
   $('adminResults').addEventListener('click', async e => {
     const btn = e.target.closest('.save-w'); if (!btn) return;
-    const owner = btn.dataset.owner, val = $('adminResults').querySelector(`input[data-owner="${CSS.escape(owner)}"]`).value;
-    try { await rpc('admin_set_winnings', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value), p_owner: owner, p_winnings: Number(val || 0) }); await loadAdminBoard(); msg('adminResultsMsg', `Saved ${owner}: ${fmt$(val)}.`, 'ok'); }
+    const owner = btn.dataset.owner, row = btn.closest('tr');
+    const val = row.querySelector('input[type=number]:not(.adj)').value, adj = row.querySelector('.adj').value, note = row.querySelector('.adj-note').value;
+    try {
+      await rpc('admin_set_winnings', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value), p_owner: owner,
+        p_winnings: Number(val || 0), p_adjust: Number(adj || 0), p_adjust_note: note });
+      await loadAdminBoard(); msg('adminResultsMsg', `Saved ${owner}: ${fmt$(val)}${Number(adj) ? ` with a ${Number(adj) > 0 ? '+' : '−'}${fmt$(Math.abs(Number(adj)))} adjustment` : ''}.`, 'ok');
+    }
     catch (err) { msg('adminResultsMsg', err.message, 'err'); }
   });
   $('ownerSave').addEventListener('click', async () => {

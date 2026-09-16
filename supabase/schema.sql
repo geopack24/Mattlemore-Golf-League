@@ -80,6 +80,9 @@ create table if not exists cards (               -- commissioner's TCG-style enc
 );
 create unique index if not exists cards_one_in_play_per_week on cards (owner_id, tournament_id) where status = 'played';
 alter table cards add column if not exists library_id int references card_library(id) on delete set null;
+-- commissioner's manual adjustment for cards/rulings the engine can't compute (applied after cards)
+alter table picks add column if not exists adjust numeric not null default 0;
+alter table picks add column if not exists adjust_note text;
 -- full_card: the image IS the finished card (title/text baked in) — show it as-is, no frame
 alter table cards        add column if not exists full_card boolean not null default false;
 alter table card_library add column if not exists full_card boolean not null default false;
@@ -183,6 +186,7 @@ begin
     b := b || jsonb_build_object(c.o::text, c.wn * v_t.multiplier);
   end loop;
   m := b;
+  -- (commissioner adjustments are applied last, after every card — see the end of this function)
 
   select coalesce(array_agg(cd.owner_id), '{}') into sh from cards cd
    where cd.tournament_id = p_tournament_id and cd.status = 'played' and cd.effect = 'shield';
@@ -278,6 +282,16 @@ begin
     end case;
   end loop;
 
+  -- commissioner adjustments (In the Stocks rulings, custom cards, corrections) — always last
+  for c in select p.owner_id as o, p.adjust as adj, p.adjust_note as an from picks p
+            where p.tournament_id = p_tournament_id and p.adjust <> 0 loop
+    a := c.o::text;
+    if not (m ? a) then m := m || jsonb_build_object(a, 0); w := w || jsonb_build_object(a, 0); b := b || jsonb_build_object(a, 0); end if;
+    m := jsonb_set(m, array[a], to_jsonb((m->>a)::numeric + c.adj));
+    n := _note(n, a, 'Commissioner: ' || case when c.adj >= 0 then '+' else '−' end || '$' || to_char(abs(c.adj), 'FM999,999,999,990')
+                     || case when nullif(trim(c.an), '') is not null then ' (' || trim(c.an) || ')' else '' end);
+  end loop;
+
   for k, v in select * from jsonb_each(m) loop
     o_id := k::int; raw := (w->>k)::numeric; base_pts := (b->>k)::numeric; pts := (m->>k)::numeric; note := n->>k;
     return next;
@@ -324,7 +338,7 @@ drop function if exists admin_deal_card(text, text, text, text, text, jsonb, tex
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text);
 create or replace function tournament_board(p_tournament_id int)
 returns table (owner text, has_picked boolean, golfer text, winnings numeric,
-               points numeric, submitted_at timestamptz, note text)
+               points numeric, submitted_at timestamptz, note text, adjust numeric, adjust_note text)
 language sql stable security definer set search_path = public, extensions as $$
   select o.name,
          p.id is not null,
@@ -332,7 +346,9 @@ language sql stable security definer set search_path = public, extensions as $$
          case when now() >= t.lock_at then p.winnings end,
          case when now() >= t.lock_at then coalesce(sp.pts, p.winnings * t.multiplier) end,
          p.submitted_at,
-         case when now() >= t.lock_at then sp.note end
+         case when now() >= t.lock_at then sp.note end,
+         case when now() >= t.lock_at then p.adjust end,
+         case when now() >= t.lock_at then p.adjust_note end
     from owners o
     cross join tournaments t
     left join picks p on p.owner_id = o.id and p.tournament_id = t.id
@@ -569,11 +585,17 @@ begin
   on conflict (name) do update set pin_hash = excluded.pin_hash, active = excluded.active;
 end $$;
 
-create or replace function admin_set_winnings(p_admin_pin text, p_tournament_id int, p_owner text, p_winnings numeric)
+drop function if exists admin_set_winnings(text, int, text, numeric);
+-- p_adjust / p_adjust_note: null leaves the stored value alone; an empty note clears it.
+create or replace function admin_set_winnings(p_admin_pin text, p_tournament_id int, p_owner text, p_winnings numeric,
+                                              p_adjust numeric default null, p_adjust_note text default null)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
-  update picks p set winnings = coalesce(p_winnings, 0), updated_at = now()
+  update picks p set winnings = coalesce(p_winnings, 0),
+                     adjust = coalesce(p_adjust, p.adjust),
+                     adjust_note = case when p_adjust_note is null then p.adjust_note else nullif(trim(p_adjust_note), '') end,
+                     updated_at = now()
     from owners o
    where o.id = p.owner_id and lower(o.name) = lower(trim(p_owner)) and p.tournament_id = p_tournament_id;
   if not found then raise exception 'No pick found for % in that tournament', p_owner; end if;
@@ -756,7 +778,7 @@ grant execute on function
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),
-  admin_set_winnings(text, int, text, numeric),
+  admin_set_winnings(text, int, text, numeric, numeric, text),
   admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric),
   admin_delete_tournament(text, int), admin_set_admin_pin(text, text), admin_set_season(text, int),
   list_champions(), admin_set_champion(text, int, text, text, numeric), admin_delete_champion(text, int)
