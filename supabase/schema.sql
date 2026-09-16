@@ -87,6 +87,9 @@ alter table tournaments add column if not exists announced_at timestamptz;   -- 
 -- full_card: the image IS the finished card (title/text baked in) — show it as-is, no frame
 alter table cards        add column if not exists full_card boolean not null default false;
 alter table card_library add column if not exists full_card boolean not null default false;
+-- tier / rarity: common < rare < legendary < mythic (frame look + set-symbol colour + Discord embed colour)
+alter table card_library add column if not exists tier text not null default 'common' check (tier in ('common','rare','legendary','mythic'));
+alter table cards        add column if not exists tier text not null default 'common' check (tier in ('common','rare','legendary','mythic'));
 -- keep the effect lists in step on an existing database
 alter table cards        drop constraint if exists cards_effect_check;
 alter table cards        add  constraint cards_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse'));
@@ -341,6 +344,9 @@ drop function if exists my_cards(text, text);
 drop function if exists admin_list_library(text);
 drop function if exists admin_deal_card(text, text, text, text, text, jsonb, text, text, text);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text);
+drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean);
+drop function if exists admin_list_cards(text);
+drop function if exists revealed_card(text);
 create or replace function tournament_board(p_tournament_id int)
 returns table (owner text, has_picked boolean, golfer text, winnings numeric,
                points numeric, submitted_at timestamptz, note text, adjust numeric, adjust_note text)
@@ -371,9 +377,9 @@ returns table (name text) language sql stable security definer set search_path =
 $$;
 
 create or replace function revealed_card(p_name text)
-returns table (name text, kind text, effect text, params jsonb, rules text, flavor text, image text, full_card boolean)
+returns table (name text, kind text, effect text, params jsonb, rules text, flavor text, image text, full_card boolean, tier text)
 language sql stable security definer set search_path = public, extensions as $$
-  select c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.full_card
+  select c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.full_card, c.tier
     from cards c join tournaments t on t.id = c.tournament_id
    where c.status = 'played' and now() >= t.lock_at and lower(c.name) = lower(trim(p_name))
    order by c.played_at desc limit 1;
@@ -381,9 +387,9 @@ $$;
 
 -- Cards in play for a tournament — revealed at lock time, like picks.
 create or replace function tournament_cards(p_tournament_id int)
-returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text, full_card boolean)
+returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text, full_card boolean, tier text)
 language sql stable security definer set search_path = public, extensions as $$
-  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name, c.full_card
+  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name, c.full_card, c.tier
     from cards c
     join owners o on o.id = c.owner_id
     join tournaments t on t.id = c.tournament_id
@@ -451,13 +457,13 @@ end $$;
 
 create or replace function my_cards(p_owner text, p_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean)
+               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean, tier text)
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
     select c.id, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.status,
-           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card
+           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card, c.tier
       from cards c
       left join tournaments t on t.id = c.tournament_id
       left join owners tg on tg.id = c.target_owner_id
@@ -685,7 +691,7 @@ end $$;
 
 create or replace function admin_list_library(p_admin_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean)
+               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text)
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
@@ -693,7 +699,7 @@ begin
     select l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.retired,
            (select count(*) from cards c where c.library_id = l.id and c.status <> 'revoked')::int,
            (select count(*) from cards c where c.library_id = l.id and c.status = 'held')::int,
-           l.created_at, l.full_card
+           l.created_at, l.full_card, l.tier
       from card_library l
      order by l.retired, lower(l.name);
 end $$;
@@ -702,22 +708,22 @@ end $$;
 create or replace function admin_save_library_card(p_admin_pin text, p_id int, p_name text, p_kind text, p_effect text,
                                                    p_params jsonb default '{}', p_rules text default null,
                                                    p_flavor text default null, p_image text default null,
-                                                   p_full_card boolean default null)
+                                                   p_full_card boolean default null, p_tier text default null)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int;
 begin
   perform _check_admin(p_admin_pin);
   if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
   if p_id is null then
-    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card)
+    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier)
     values (trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect, coalesce(p_params, '{}'),
-            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false))
+            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false), coalesce(p_tier, 'common'))
     returning id into v_id;
   else
     update card_library
        set name = trim(p_name), kind = coalesce(nullif(trim(p_kind), ''), 'Enchantment'), effect = p_effect,
            params = coalesce(p_params, '{}'), rules = nullif(trim(p_rules), ''), flavor = nullif(trim(p_flavor), ''),
-           image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), updated_at = now()
+           image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), tier = coalesce(p_tier, tier), updated_at = now()
      where id = p_id returning id into v_id;
     if v_id is null then raise exception 'No such library card'; end if;
   end if;
@@ -742,20 +748,20 @@ begin
   if l.id is null then raise exception 'No such library card'; end if;
   select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
   if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
-  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card)
-  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card)
+  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier)
+  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card, l.tier)
   returning id into v_id;
   return v_id;
 end $$;
 
 create or replace function admin_list_cards(p_admin_pin text)
 returns table (id int, owner text, name text, kind text, effect text, params jsonb, status text,
-               tournament text, target text, dealt_at timestamptz, has_image boolean)
+               tournament text, target text, dealt_at timestamptz, has_image boolean, tier text)
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
   return query
-    select c.id, o.name, c.name, c.kind, c.effect, c.params, c.status, t.name, tg.name, c.dealt_at, c.image is not null
+    select c.id, o.name, c.name, c.kind, c.effect, c.params, c.status, t.name, tg.name, c.dealt_at, c.image is not null, c.tier
       from cards c
       join owners o on o.id = c.owner_id
       left join tournaments t on t.id = c.tournament_id
@@ -821,8 +827,9 @@ begin
 end $$;
 
 -- Cards in play with their art, for the announcer's image embeds (locked weeks only).
+drop function if exists _discord_cards(int);
 create or replace function _discord_cards(p_tournament_id int)
-returns table (owner text, target text, name text, kind text, effect text, rules text, flavor text, image text, summary text)
+returns table (owner text, target text, name text, kind text, effect text, rules text, flavor text, image text, summary text, tier text)
 language sql stable security definer set search_path = public, extensions as $$
   select o.name, tg.name, c.name, c.kind, c.effect, c.rules, c.flavor, c.image,
          case c.effect
@@ -835,7 +842,8 @@ language sql stable security definer set search_path = public, extensions as $$
            when 'mulligan'   then 'May reuse a golfer this week'
            when 'fellowship' then 'Partners get +$' || coalesce(c.params->>'amount', '500000') || ' each; $0 for both if either misses the cut'
            when 'curse'      then coalesce('Victim must pick ' || nullif(c.params->>'golfer', ''), 'Curse') || coalesce(' · ' || nullif(c.params->>'pct', '') || '% to their points', '')
-           else 'Commissioner rules on it at results time' end
+           else 'Commissioner rules on it at results time' end,
+         c.tier
     from cards c join owners o on o.id = c.owner_id join tournaments t on t.id = c.tournament_id
     left join owners tg on tg.id = c.target_owner_id
    where c.tournament_id = p_tournament_id and c.status = 'played' and now() >= t.lock_at
@@ -945,7 +953,7 @@ grant execute on function
   revealed_card_names(), revealed_card(text),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
-  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   admin_announce(text, int), admin_set_discord(text, text), admin_discord_status(text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),

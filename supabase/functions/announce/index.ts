@@ -7,8 +7,9 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 type Card = {
   owner: string; target: string | null; name: string; kind: string; effect: string;
-  rules: string | null; flavor: string | null; image: string | null; summary: string | null;
+  rules: string | null; flavor: string | null; image: string | null; summary: string | null; tier: string | null;
 };
+const TIER_COLOR: Record<string, number> = { common: 0x8f8f8f, rare: 0x2e5a99, legendary: 0xc1641b, mythic: 0x8b5cf6 };
 
 Deno.serve(async (req) => {
   if (req.headers.get("x-announce-key") !== Deno.env.get("ANNOUNCE_KEY")) {
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
   const embeds = ((cards ?? []) as Card[]).slice(0, 10).map((c, i) => {
     const who = `${c.owner} plays ${c.name}` +
       (c.target ? (c.effect === "fellowship" ? ` with ${c.target}` : ` on ${c.target}`) : "");
-    const embed: Record<string, unknown> = { title: who, color: 0xc29d52 };
+    const embed: Record<string, unknown> = { title: who, color: TIER_COLOR[c.tier ?? "common"] ?? 0xc29d52 };
     if (c.image?.startsWith("data:")) {
       const [meta, b64] = c.image.split(",", 2);
       const mime = /data:([^;]+)/.exec(meta)?.[1] ?? "image/jpeg";

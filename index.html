@@ -167,7 +167,13 @@
   @media(max-width:560px){.cardpop{width:210px}}
   .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
   .tcg-foot label{color:#c9b8e8}
-  .tcg-foot .fx{font-style:italic;color:var(--leaf);font-size:13px;margin-bottom:6px}
+  .tcg-foot .fx{font-style:italic;color:var(--leaf);font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tag.tier-common{background:#3a3a3a;color:#e6e6e6;border-color:#8a8a8a}
+  .tag.tier-rare{background:#14213d;color:#dbe6f7;border-color:#7fa0d0}
+  .tag.tier-legendary{background:#4a2306;color:#ffe08a;border-color:#f3c968}
+  .tag.tier-mythic{background:linear-gradient(120deg,#5a2fa0,#2a1650);color:#ffe9a8;border-color:#c9a4ff;box-shadow:0 0 10px -2px rgba(170,110,255,.7)}
+  .libbar{align-items:flex-end;margin-bottom:8px}
+  .libbar .f.sm{flex:0 1 160px}
   .tcg-foot .fx:last-child{margin-bottom:0}
   .tcg-foot .f{flex:1 1 140px}
   .tcg.full{display:block;aspect-ratio:auto;padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
@@ -369,6 +375,15 @@
     <div class="card">
       <h2>Card library</h2>
       <p class="sub">Every card design the league has ever seen, kept season to season. Deal a copy to anyone, edit the design, or retire it from the pool.</p>
+      <div class="row libbar">
+        <div class="f"><label>Search</label><input id="libSearch" placeholder="name, type line, rules, flavor…" autocomplete="off"></div>
+        <div class="f sm"><label>Tier</label><select id="libTier"><option value="">All tiers</option></select></div>
+        <div class="f sm"><label>Effect</label><select id="libEffect"><option value="">All effects</option></select></div>
+        <div class="f sm"><label>Status</label><select id="libStatus">
+          <option value="active">Active (not retired)</option><option value="never">Never dealt</option><option value="dealt">Dealt at least once</option>
+          <option value="hands">In someone's hand now</option><option value="retired">Retired</option><option value="all">Everything</option></select></div>
+      </div>
+      <div class="hint" id="libCount" style="margin:0 0 10px"></div>
       <div class="hand mini" id="library"></div>
       <div id="libMsg"></div>
     </div>
@@ -380,6 +395,7 @@
         <div class="f"><label>Deal to</label><select id="dcOwner"></select></div>
         <div class="f"><label>Card name</label><input id="dcName" placeholder="Ryder Die"></div>
         <div class="f sm"><label>Type line</label><input id="dcKind" value="Enchantment"></div>
+        <div class="f sm"><label>Tier</label><select id="dcTier"></select></div>
       </div>
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Effect</label><select id="dcEffect"></select></div>
@@ -487,7 +503,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-6';
+  const BUILD = '2026-09-16-7';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -537,9 +553,11 @@
     mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
     custom:     { label: 'Custom (commissioner rules on it at results time)', params: [], sum: () => 'Commissioner rules on it when entering results' },
   };
+  const TIERS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
+  const tierTag = t => `<span class="tag tier-${TIERS[t] ? t : 'common'}">${TIERS[t] || 'Common'}</span>`;
   function tcgHTML(c, foot, bare = false) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
-    const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
+    const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">${tierTag(c.tier)} ⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
     if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}"></div>${footHTML}</div>`;
     return `<div class="cardwrap"><div class="tcg ${c.status || ''}">
       <div class="tcg-title">${esc(c.name)}</div>
@@ -855,6 +873,9 @@
   // ---- deal cards ----
   let dcImageData = null, dcLibId = null, dcLibImage = null;   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
   $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
+  $('dcTier').innerHTML = Object.entries(TIERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('libTier').innerHTML += Object.entries(TIERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
+  $('libEffect').innerHTML += Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
   const dcParams = () => Object.fromEntries((EFFECTS[$('dcEffect').value].params).map(p => {
     const v = ($('dcp_' + p.k)?.value ?? '').trim(); return v === '' ? null : [p.k, p.t === 'number' ? Number(v) : v];
   }).filter(Boolean));
@@ -871,13 +892,13 @@
   function dcSync() {
     dcRenderParams();
     $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: dcParams(),
-      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage, full_card: $('dcFull').checked });
+      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage, full_card: $('dcFull').checked, tier: $('dcTier').value });
     fitCards($('dcPreview'));
   }
   const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
-    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked });
+    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked, p_tier: $('dcTier').value });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcEffect').selectedIndex = 0;
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
@@ -895,7 +916,7 @@
       dcKeepEditing(id); await loadLibrary();
     } catch (e) { msg('dcMsg', e.message, 'err'); }
   });
-  ['dcName','dcKind','dcEffect','dcRules','dcFlavor'].forEach(id => $(id).addEventListener('input', dcSync));
+  ['dcName','dcKind','dcEffect','dcRules','dcFlavor','dcTier'].forEach(id => $(id).addEventListener('input', dcSync));
   $('dcFull').addEventListener('change', dcSync);
   $('dcImage').addEventListener('change', () => {
     const f = $('dcImage').files[0]; if (!f) { dcImageData = null; dcSync(); return; }
@@ -926,15 +947,29 @@
   async function loadLibrary() {
     if (!$('adminPin').value) { $('library').innerHTML = '<div class="empty" style="grid-column:1/-1">Enter the commissioner PIN above to open the library.</div>'; return; }
     libRows = await rpc('admin_list_library', { p_admin_pin: apin() }); indexCards(libRows);
+    renderLibrary();
+  }
+  const libFilter = l => {
+    const q = $('libSearch').value.trim().toLowerCase(), tier = $('libTier').value, eff = $('libEffect').value, st = $('libStatus').value;
+    if (q && ![l.name, l.kind, l.rules, l.flavor].some(s => (s || '').toLowerCase().includes(q))) return false;
+    if (tier && (l.tier || 'common') !== tier) return false;
+    if (eff && l.effect !== eff) return false;
+    return st === 'all' ? true : st === 'retired' ? l.retired : st === 'never' ? !l.retired && l.times_dealt === 0
+         : st === 'dealt' ? !l.retired && l.times_dealt > 0 : st === 'hands' ? !l.retired && l.in_play > 0 : !l.retired;
+  };
+  ['libSearch','libTier','libEffect','libStatus'].forEach(id => $(id).addEventListener('input', () => renderLibrary()));
+  function renderLibrary() {
     const ownerOpts = owners.map(o => `<option>${esc(o.name)}</option>`).join('');
-    $('library').innerHTML = libRows.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
+    const shown = libRows.filter(libFilter);
+    $('libCount').textContent = libRows.length ? `Showing ${shown.length} of ${libRows.length} designs` : '';
+    $('library').innerHTML = shown.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
       <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b> in hands${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
       <div class="row">
         ${l.retired ? '' : `<div class="f"><select class="lib-owner">${ownerOpts}</select></div><div><button class="btn lib-deal" data-id="${l.id}" style="padding:8px 12px">Deal</button></div>`}
         <div><button class="btn ghost lib-edit" data-id="${l.id}" style="padding:7px 10px">Edit</button></div>
         <div><button class="btn ghost lib-retire" data-id="${l.id}" data-retired="${l.retired}" style="padding:7px 10px">${l.retired ? 'Restore' : 'Retire'}</button></div>
       </div>`)).join('')
-      || '<div class="empty" style="grid-column:1/-1">The library is empty. Design a card below — it lands here and can be dealt every season after.</div>';
+      || `<div class="empty" style="grid-column:1/-1">${libRows.length ? 'No designs match those filters.' : 'The library is empty. Design a card below — it lands here and can be dealt every season after.'}</div>`;
     fitCards($('library'));
   }
   $('library').addEventListener('click', async e => {
@@ -949,7 +984,7 @@
         const l = libRows.find(x => x.id === Number(edit.dataset.id)); if (!l) return;
         dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
         $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
-        $('dcFull').checked = !!l.full_card; dcRenderParams(l.params || {});
+        $('dcFull').checked = !!l.full_card; $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
         $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
         $('dcTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
