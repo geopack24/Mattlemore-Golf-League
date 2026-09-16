@@ -161,6 +161,10 @@
   .tcg-text p:last-child{margin:0}
   .tcg-text .fl{font-style:italic;color:#3e3012;padding-top:2cqw;border-top:1px solid rgba(43,31,12,.25)}
   .cardwrap{display:flex;flex-direction:column}
+  .cardref{color:var(--gold);border-bottom:1px dotted rgba(231,195,104,.6);cursor:help}
+  .cardpop{position:fixed;z-index:60;width:250px;pointer-events:none;filter:drop-shadow(0 24px 40px rgba(0,0,0,.75));animation:popin .12s ease-out}
+  @keyframes popin{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
+  @media(max-width:560px){.cardpop{width:210px}}
   .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
   .tcg-foot label{color:#c9b8e8}
   .tcg-foot .fx{font-style:italic;color:var(--leaf);font-size:13px;margin-bottom:6px}
@@ -475,6 +479,7 @@
   </section>
 </main>
 <footer><b>Mattlemore Golf League</b><br>Only one wears the white.</footer>
+<div id="cardPop" class="cardpop hidden" aria-hidden="true"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
@@ -482,7 +487,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-4';
+  const BUILD = '2026-09-16-5';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -532,9 +537,9 @@
     mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
     custom:     { label: 'Custom (commissioner rules on it at results time)', params: [], sum: () => 'Commissioner rules on it when entering results' },
   };
-  function tcgHTML(c, foot) {
+  function tcgHTML(c, foot, bare = false) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
-    const footHTML = `<div class="tcg-foot"><div class="fx">⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
+    const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
     if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}"></div>${footHTML}</div>`;
     return `<div class="cardwrap"><div class="tcg ${c.status || ''}">
       <div class="tcg-title">${esc(c.name)}</div>
@@ -543,6 +548,36 @@
       <div class="tcg-text">${c.rules ? `<p>${esc(c.rules)}</p>` : ''}${c.flavor ? `<p class="fl">${esc(c.flavor)}</p>` : ''}</div>
     </div>${footHTML}</div>`;
   }
+  // ---- hover a card name anywhere → the card pops up. Index fills from whatever card data this
+  // session has legitimately loaded (my hand, revealed plays, the library for the commissioner);
+  // names revealed at lock come from revealed_card_names() and their designs are fetched on demand.
+  const CARD_INDEX = new Map(), CARD_NAMES = new Set();
+  function indexCards(list) { (list || []).forEach(c => { if (c && c.name) { CARD_INDEX.set(c.name.toLowerCase(), c); CARD_NAMES.add(c.name); } }); }
+  function linkCards(escapedText) {
+    if (!CARD_NAMES.size || !escapedText) return escapedText;
+    const names = [...CARD_NAMES].sort((a, b) => b.length - a.length).map(n => esc(n).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    return escapedText.replace(new RegExp('(' + names.join('|') + ')', 'g'), m => `<span class="cardref" data-card="${m}">${m}</span>`);
+  }
+  const cardRef = name => `<span class="cardref" data-card="${esc(name)}">${esc(name)}</span>`;
+  let popFor = null;
+  async function showCardPop(ref) {
+    const name = ref.dataset.card; popFor = ref;
+    let card = CARD_INDEX.get(name.toLowerCase());
+    if (!card) { try { [card] = await rpc('revealed_card', { p_name: name }); } catch { card = null; } if (card) indexCards([card]); }
+    if (popFor !== ref || !card) return;
+    const pop = $('cardPop'); pop.innerHTML = tcgHTML(card, null, true); pop.classList.remove('hidden');
+    const r = ref.getBoundingClientRect(), w = pop.offsetWidth, h = pop.offsetHeight || w * 1.5;
+    let x = r.right + 12, y = r.top + r.height / 2 - h / 2;
+    if (x + w > innerWidth - 8) x = Math.max(8, r.left - w - 12);
+    y = Math.min(Math.max(8, y), innerHeight - h - 8);
+    pop.style.left = x + 'px'; pop.style.top = y + 'px'; fitCards(pop);
+  }
+  function hideCardPop() { popFor = null; $('cardPop').classList.add('hidden'); }
+  document.addEventListener('mouseover', e => { const ref = e.target.closest('.cardref'); if (ref) showCardPop(ref); });
+  document.addEventListener('mouseout', e => { const ref = e.target.closest('.cardref'); if (ref && !ref.contains(e.relatedTarget)) hideCardPop(); });
+  document.addEventListener('click', e => { const ref = e.target.closest('.cardref'); if (ref) { e.preventDefault(); popFor === ref && !$('cardPop').classList.contains('hidden') ? hideCardPop() : showCardPop(ref); } else hideCardPop(); });
+  window.addEventListener('scroll', hideCardPop, { passive: true });
+
   // Cards keep a fixed 2:3 shape; long rules text shrinks (down to 9px) instead of stretching the card.
   function fitCards(root = document) {
     const shrink = (el, horizontal, min) => {              // start from the CSS (cqw) size, step down only if it overflows
@@ -576,7 +611,9 @@
   // ---- shared data ----
   let tournaments = [], owners = [], season = null;
   async function loadShared() {
-    [tournaments, owners, season] = await Promise.all([rpc('list_tournaments'), rpc('list_owners'), rpc('current_season')]);
+    let revealed;
+    [tournaments, owners, season, revealed] = await Promise.all([rpc('list_tournaments'), rpc('list_owners'), rpc('current_season'), rpc('revealed_card_names').catch(() => [])]);
+    revealed.forEach(r => CARD_NAMES.add(r.name));
     const golfers = await rpc('list_golfers');
     $('golferList').innerHTML = golfers.map(g => `<option value="${esc(g.name)}">`).join('');
     const ownerOpts = '<option value="">Select…</option>' + owners.map(o => `<option>${esc(o.name)}</option>`).join('');
@@ -624,10 +661,11 @@
     $('boardTable').querySelector('tbody').innerHTML = rows.map(b => `
       <tr><td><b>${esc(b.owner)}</b></td>
           <td>${b.has_picked ? `<span class="tag in">Picked</span>` : `<span class="tag wait">${locked ? 'No pick' : 'Waiting'}</span>`}</td>
-          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${esc(b.note)}</small>` : ''}</td>` : ''}
+          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${linkCards(esc(b.note))}</small>` : ''}</td>` : ''}
       </tr>`).join('');
     if (locked) {
       const cards = await rpc('tournament_cards', { p_tournament_id: id });
+      indexCards(cards);
       $('boardCards').innerHTML = cards.length
         ? `<h2 style="margin-top:20px">Cards in play</h2><p class="sub">Revealed at lock. Applied to the points above in the order they were played.</p>
            <div class="hand mini">${cards.map(c => tcgHTML(c, `Played by <b>${esc(c.owner)}</b>${c.target ? ` ${c.effect === 'fellowship' ? 'with' : 'against'} <b>${esc(c.target)}</b>` : ''}`)).join('')}</div>`
@@ -690,7 +728,7 @@
       $('mineTable').querySelector('tbody').innerHTML = rows.map(r => `
         <tr><td>${esc(r.tournament)}</td><td>${fmtDate(r.start_date)}</td><td><b>${esc(r.golfer)}</b></td>
             <td>${r.locked ? '<span class="tag lock">Final</span>' : '<span class="tag open">Can still change</span>'}</td>
-            <td class="num">${r.locked ? fmt$(r.winnings) : '—'}</td><td class="num">${r.locked ? fmt$(r.points) : '—'}${r.note ? `<small class="note">${esc(r.note)}</small>` : ''}</td></tr>`).join('')
+            <td class="num">${r.locked ? fmt$(r.winnings) : '—'}</td><td class="num">${r.locked ? fmt$(r.points) : '—'}${r.note ? `<small class="note">${linkCards(esc(r.note))}</small>` : ''}</td></tr>`).join('')
         || '<tr><td colspan="6" class="muted">No picks yet this season.</td></tr>';
     } catch (e) { $('mineResults').classList.add('hidden'); msg('mineMsg', e.message, 'err'); }
   }
@@ -710,7 +748,7 @@
     if (!name || !pin) return msg('cardsMsg', 'Choose your name and enter your PIN.', 'err');
     try {
       const cards = await rpc('my_cards', { p_owner: name, p_pin: pin });
-      remember(name, pin);
+      remember(name, pin); indexCards(cards);
       const open = tournaments.filter(t => !t.locked), rivals = owners.filter(o => o.name !== name);
       $('hand').innerHTML = cards.map(c => {
         const e = EFFECTS[c.effect] || EFFECTS.custom;
@@ -890,7 +928,7 @@
   let libRows = [];
   async function loadLibrary() {
     if (!$('adminPin').value) { $('library').innerHTML = '<div class="empty" style="grid-column:1/-1">Enter the commissioner PIN above to open the library.</div>'; return; }
-    libRows = await rpc('admin_list_library', { p_admin_pin: apin() });
+    libRows = await rpc('admin_list_library', { p_admin_pin: apin() }); indexCards(libRows);
     const ownerOpts = owners.map(o => `<option>${esc(o.name)}</option>`).join('');
     $('library').innerHTML = libRows.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
       <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b> in hands${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
@@ -928,7 +966,7 @@
     if (!$('adminPin').value) return;
     const rows = await rpc('admin_list_cards', { p_admin_pin: apin() });
     $('dcTable').querySelector('tbody').innerHTML = rows.map(r => `<tr>
-      <td><b>${esc(r.owner)}</b></td><td>${esc(r.name)}<small class="note" style="color:var(--muted)">${esc((EFFECTS[r.effect] || EFFECTS.custom).sum(r.params || {}))}</small></td>
+      <td><b>${esc(r.owner)}</b></td><td>${cardRef(r.name)}<small class="note" style="color:var(--muted)">${esc((EFFECTS[r.effect] || EFFECTS.custom).sum(r.params || {}))}</small></td>
       <td><span class="tag ${r.status === 'played' ? 'in' : r.status === 'revoked' ? 'wait' : 'open'}">${r.status}</span></td>
       <td>${r.tournament ? esc(r.tournament) + (r.target ? ' vs ' + esc(r.target) : '') : '—'}</td>
       <td>${r.status !== 'revoked' ? `<button class="btn ghost revoke-btn" data-id="${r.id}" style="padding:6px 10px">Revoke</button>` : ''}</td></tr>`).join('')
@@ -968,7 +1006,7 @@
       <td>${b.has_picked ? `<input type="number" step="1" class="adj" data-owner="${esc(b.owner)}" value="${Number(b.adjust) || 0}" style="max-width:130px">` : ''}</td>
       <td>${b.has_picked ? `<input type="text" class="adj-note" data-owner="${esc(b.owner)}" value="${esc(b.adjust_note || '')}" placeholder="e.g. Ring of the Covenant" style="min-width:160px">` : ''}</td>
       <td>${b.has_picked ? `<button class="btn ghost save-w" data-owner="${esc(b.owner)}">Save</button>` : ''}</td>
-      <td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${esc(b.note)}</small>` : ''}</td></tr>`).join('');
+      <td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${linkCards(esc(b.note))}</small>` : ''}</td></tr>`).join('');
   }
   $('adminLoadBoard').addEventListener('click', () => loadAdminBoard().catch(e => msg('adminResultsMsg', e.message, 'err')));
   $('adminResults').addEventListener('click', async e => {

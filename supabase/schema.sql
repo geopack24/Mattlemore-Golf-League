@@ -358,6 +358,23 @@ language sql stable security definer set search_path = public, extensions as $$
    order by o.name;
 $$;
 
+-- Card designs the whole league may see: anything played in a locked week this season.
+-- Used for the hover popover on card names in scoring notes.
+create or replace function revealed_card_names()
+returns table (name text) language sql stable security definer set search_path = public, extensions as $$
+  select distinct c.name from cards c join tournaments t on t.id = c.tournament_id
+   where c.status = 'played' and now() >= t.lock_at and t.season = current_season() order by 1;
+$$;
+
+create or replace function revealed_card(p_name text)
+returns table (name text, kind text, effect text, params jsonb, rules text, flavor text, image text, full_card boolean)
+language sql stable security definer set search_path = public, extensions as $$
+  select c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.full_card
+    from cards c join tournaments t on t.id = c.tournament_id
+   where c.status = 'played' and now() >= t.lock_at and lower(c.name) = lower(trim(p_name))
+   order by c.played_at desc limit 1;
+$$;
+
 -- Cards in play for a tournament — revealed at lock time, like picks.
 create or replace function tournament_cards(p_tournament_id int)
 returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text, full_card boolean)
@@ -887,6 +904,7 @@ revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(
 revoke execute on function _discord_message(int), _discord_post(text), announce_locked() from public, anon, authenticated;
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
+  revealed_card_names(), revealed_card(text),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
   admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean),
