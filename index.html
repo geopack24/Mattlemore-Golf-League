@@ -464,6 +464,14 @@
 <script src="config.js"></script>
 <script>
 (() => {
+  // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
+  // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
+  const BUILD = '2026-09-16-1';
+  fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
+    const m = html.match(/const BUILD = '([^']+)'/);
+    if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
+  }).catch(() => {});
+
   const cfg = window.LEAGUE_CONFIG || {};
   const configured = cfg.SUPABASE_URL && !cfg.SUPABASE_URL.includes('YOUR-PROJECT') && cfg.SUPABASE_ANON_KEY && !cfg.SUPABASE_ANON_KEY.includes('YOUR-ANON');
   const $ = id => document.getElementById(id);
@@ -793,7 +801,7 @@
   const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
     p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false;
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcEffect').selectedIndex = 0;
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
