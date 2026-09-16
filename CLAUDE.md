@@ -35,6 +35,9 @@ Views toggled by `show(view)`: `board` (This Week: pick form + who's-in; after l
 ## Testing
 No test framework checked in. Previous verification: schema loaded into local Postgres 16 with roles `anon`/`authenticated` created first, functions exercised as `set role anon`, and a Playwright script driving the page against a small mock of PostgREST (`POST /rest/v1/rpc/<fn>`). Reproduce that approach for changes to rules or RPCs; a real Supabase project also works if GP shares the URL/anon key (test data only).
 
+## Discord
+`settings.discord_webhook` (set via `admin_set_discord`, never exposed). `announce_locked()` runs from pg_cron job `announce-locks` every 5 min: any tournament with `lock_at <= now()` in the last 2 days and `announced_at is null` → `_discord_post(_discord_message(id))` via pg_net (`net.http_post`), then stamps `announced_at`. `_discord_message` = picks + cards in play when locked; "who's in so far" when not. `admin_announce` posts on demand (Enter Results → "Announce on Discord") and returns the text. The DO blocks that create pg_net/pg_cron and (re)schedule the job swallow errors so the schema still loads on a project without them; `admin_discord_status.scheduled` tells the UI.
+
 ## Open questions for GP
 - Owner names live in sheet tabs not yet shared (add via Commissioner tab or `admin_set_owner`).
 - 2027 purses: seeded with 2026 values; update when the Tour publishes them (cosmetic only).

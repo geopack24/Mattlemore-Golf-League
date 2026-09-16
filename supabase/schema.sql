@@ -83,6 +83,7 @@ alter table cards add column if not exists library_id int references card_librar
 -- commissioner's manual adjustment for cards/rulings the engine can't compute (applied after cards)
 alter table picks add column if not exists adjust numeric not null default 0;
 alter table picks add column if not exists adjust_note text;
+alter table tournaments add column if not exists announced_at timestamptz;   -- Discord lock announcement sent
 -- full_card: the image IS the finished card (title/text baked in) — show it as-is, no frame
 alter table cards        add column if not exists full_card boolean not null default false;
 alter table card_library add column if not exists full_card boolean not null default false;
@@ -765,17 +766,132 @@ begin
   on conflict (key) do update set value = excluded.value;
 end $$;
 
+-- ---------- Discord: announce picks + cards when a week locks ----------------
+-- The webhook URL lives in settings ('discord_webhook'); pg_cron runs announce_locked()
+-- every 5 minutes and pg_net posts the message. Nothing here is reachable by owners.
+
+create or replace function _discord_message(p_tournament_id int) returns text
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare t tournaments%rowtype; picks_txt text; cards_txt text; n int; msg text;
+begin
+  select * into t from tournaments tt where tt.id = p_tournament_id;
+  if t.id is null then return null; end if;
+  if now() >= t.lock_at then
+    select string_agg('• **' || o.name || '** — ' || coalesce(p.golfer, '_no pick_'), E'\n' order by o.name), count(p.id)
+      into picks_txt, n
+      from owners o left join picks p on p.owner_id = o.id and p.tournament_id = t.id
+     where o.active;
+    select string_agg('• **' || o.name || '** plays **' || c.name || '**'
+                      || case when tg.name is null then '' when c.effect = 'fellowship' then ' with **' || tg.name || '**' else ' on **' || tg.name || '**' end,
+                      E'\n' order by c.played_at)
+      into cards_txt
+      from cards c join owners o on o.id = c.owner_id left join owners tg on tg.id = c.target_owner_id
+     where c.tournament_id = t.id and c.status = 'played';
+    msg := '⛳ **' || t.name || '** is locked! ' || n || ' picks in · purse $' || to_char(t.prize_pool, 'FM999,999,999,990') || ' · ' || t.multiplier || '×'
+        || E'\n\n**Picks**\n' || coalesce(picks_txt, '—')
+        || E'\n\n**Cards in play**\n' || coalesce(cards_txt, '_None this week._');
+  else
+    select string_agg(o.name, ', ' order by o.name) into picks_txt
+      from owners o join picks p on p.owner_id = o.id and p.tournament_id = t.id where o.active;
+    msg := '🔒 **' || t.name || '** locks ' || to_char(t.lock_at at time zone 'America/New_York', 'Dy Mon FMDD, FMHH12:MI AM') || ' ET. In so far: '
+        || coalesce(picks_txt, 'nobody yet') || '.';
+  end if;
+  return msg;
+end $$;
+
+create or replace function _discord_post(p_content text) returns bigint
+language plpgsql security definer set search_path = public, extensions as $$
+declare hook text;
+begin
+  select value into hook from settings where key = 'discord_webhook';
+  if coalesce(hook, '') = '' then raise exception 'Discord is not connected — paste the webhook URL under Commissioner → Settings'; end if;
+  return net.http_post(url := hook,
+                       body := jsonb_build_object('content', left(p_content, 1990), 'username', 'The White Stag'),
+                       headers := '{"Content-Type":"application/json"}'::jsonb);
+end $$;
+
+-- Run by pg_cron. Announces every week that locked in the last 2 days and hasn't been announced.
+create or replace function announce_locked() returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare r record; n int := 0;
+begin
+  if coalesce((select value from settings where key = 'discord_webhook'), '') = '' then return 0; end if;
+  for r in select tt.id from tournaments tt
+            where tt.lock_at <= now() and tt.lock_at > now() - interval '2 days' and tt.announced_at is null
+            order by tt.lock_at loop
+    perform _discord_post(_discord_message(r.id));
+    update tournaments set announced_at = now() where id = r.id;
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+
+create or replace function admin_announce(p_admin_pin text, p_tournament_id int) returns text
+language plpgsql security definer set search_path = public, extensions as $$
+declare m text;
+begin
+  perform _check_admin(p_admin_pin);
+  m := _discord_message(p_tournament_id);
+  if m is null then raise exception 'Unknown tournament'; end if;
+  perform _discord_post(m);
+  update tournaments set announced_at = coalesce(announced_at, now()) where id = p_tournament_id and now() >= lock_at;
+  return m;
+end $$;
+
+create or replace function admin_set_discord(p_admin_pin text, p_url text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  if coalesce(trim(p_url), '') = '' then
+    delete from settings where key = 'discord_webhook';
+  elsif trim(p_url) !~ '^https://(discord\.com|discordapp\.com)/api/webhooks/' then
+    raise exception 'That does not look like a Discord webhook URL (it should start with https://discord.com/api/webhooks/)';
+  else
+    insert into settings (key, value) values ('discord_webhook', trim(p_url))
+    on conflict (key) do update set value = excluded.value;
+  end if;
+end $$;
+
+create or replace function admin_discord_status(p_admin_pin text)
+returns table (configured boolean, hint text, scheduled boolean)
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare hook text;
+begin
+  perform _check_admin(p_admin_pin);
+  select value into hook from settings where key = 'discord_webhook';
+  return query select coalesce(hook, '') <> '',
+                      case when coalesce(hook, '') <> '' then '…/webhooks/' || left(split_part(hook, '/webhooks/', 2), 8) || '…' end,
+                      exists (select 1 from pg_extension where extname = 'pg_cron')
+                        and exists (select 1 from cron.job where jobname = 'announce-locks');
+end $$;
+
+-- Extensions + the 5-minute schedule. Wrapped so a project without pg_cron still loads the rest.
+do $$
+begin
+  create extension if not exists pg_net with schema extensions;
+exception when others then raise notice 'pg_net not available: %', sqlerrm;
+end $$;
+do $$
+begin
+  create extension if not exists pg_cron;
+  if exists (select 1 from cron.job where jobname = 'announce-locks') then perform cron.unschedule('announce-locks'); end if;
+  perform cron.schedule('announce-locks', '*/5 * * * *', 'select public.announce_locked()');
+exception when others then raise notice 'pg_cron not available: %', sqlerrm;
+end $$;
+
 -- Only the functions are callable from the browser.
 revoke all on all functions in schema public from public, anon, authenticated;
 revoke execute on function _owner_id(text, text) from public, anon, authenticated;
 revoke execute on function _check_admin(text) from public, anon, authenticated;
 revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
+revoke execute on function _discord_message(int), _discord_post(text), announce_locked() from public, anon, authenticated;
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
   admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
+  admin_announce(text, int), admin_set_discord(text, text), admin_discord_status(text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),
   admin_set_winnings(text, int, text, numeric, numeric, text),

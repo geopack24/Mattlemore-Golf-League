@@ -163,6 +163,8 @@
   .cardwrap{display:flex;flex-direction:column}
   .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
   .tcg-foot label{color:#c9b8e8}
+  .tcg-foot .fx{font-style:italic;color:var(--leaf);font-size:13px;margin-bottom:6px}
+  .tcg-foot .fx:last-child{margin-bottom:0}
   .tcg-foot .f{flex:1 1 140px}
   .tcg.full{display:block;aspect-ratio:auto;padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
   .tcg.full::before,.tcg.full::after{display:none}
@@ -354,7 +356,7 @@
     <div class="card">
       <h2>Enter results</h2>
       <p class="sub">Type each golfer's actual prize money for the week. Points are calculated automatically.</p>
-      <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div></div>
+      <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div><div><button class="btn ghost" id="adminAnnounce" title="Post this week's picks and cards to Discord now">Announce on Discord</button></div></div>
       <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th>Adjustment ($)</th><th>Why</th><th></th><th class="num">Points after cards</th></tr></thead><tbody></tbody></table></div>
       <p class="hint">Adjustment: your ruling for anything the cards can't compute (a "custom" card, a judgment call, a correction). Applied after every card; the note shows in the scoring breakdown.</p>
       <div id="adminResultsMsg"></div>
@@ -463,6 +465,11 @@
         <div class="f sm"><label>New commissioner PIN</label><input id="newAdminPin" type="password" inputmode="numeric"></div>
         <div><button class="btn ghost" id="newAdminPinBtn">Change PIN</button></div>
       </div>
+      <div class="row" style="margin-top:14px">
+        <div class="f"><label>Discord webhook URL</label><input id="setDiscord" placeholder="https://discord.com/api/webhooks/…" autocomplete="off"></div>
+        <div><button class="btn ghost" id="setDiscordBtn">Connect Discord</button></div>
+      </div>
+      <p class="hint" id="discordStatus">When a week locks, the league's Discord gets the picks and the cards in play within 5 minutes. Discord: channel → Edit → Integrations → Webhooks → New Webhook → Copy URL.</p>
       <div id="settingsMsg"></div>
     </div>
   </section>
@@ -475,7 +482,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-3';
+  const BUILD = '2026-09-16-4';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -527,12 +534,12 @@
   };
   function tcgHTML(c, foot) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
-    const footHTML = foot ? `<div class="tcg-foot">${foot}</div>` : '';
+    const footHTML = `<div class="tcg-foot"><div class="fx">⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
     if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}"></div>${footHTML}</div>`;
     return `<div class="cardwrap"><div class="tcg ${c.status || ''}">
       <div class="tcg-title">${esc(c.name)}</div>
       <div class="tcg-art">${c.image ? `<img src="${esc(c.image)}" alt="">` : '<svg class="crest" aria-hidden="true"><use href="#stag"/></svg>'}</div>
-      <div class="tcg-type">${esc(c.kind || 'Enchantment')}<span>${esc(e.sum(c.params || {}))}</span></div>
+      <div class="tcg-type">${esc(c.kind || 'Enchantment')}</div>
       <div class="tcg-text">${c.rules ? `<p>${esc(c.rules)}</p>` : ''}${c.flavor ? `<p class="fl">${esc(c.flavor)}</p>` : ''}</div>
     </div>${footHTML}</div>`;
   }
@@ -787,8 +794,26 @@
     $('tSeason').value = s; $('setSeason').value = s;
     if (!$('chSeason').value) $('chSeason').value = s - 1;
     $('chOwners').innerHTML = owners.map(o => `<option value="${esc(o.name)}">`).join('');
-    dcSync(); loadAdminCards().catch(() => {}); loadLibrary().catch(() => {});
+    dcSync(); loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); loadDiscordStatus().catch(() => {});
   }
+  // ---- Discord ----
+  async function loadDiscordStatus() {
+    if (!$('adminPin').value) return;
+    const [s] = await rpc('admin_discord_status', { p_admin_pin: apin() });
+    $('discordStatus').innerHTML = s.configured
+      ? `<span class="tag in">Connected</span> ${esc(s.hint)} · ${s.scheduled ? 'auto-announces within 5 minutes of each lock' : '<span class="tag lock">scheduler off</span> — announce manually from Enter results'}. Paste a new URL to change it, or save an empty box to disconnect.`
+      : `<span class="tag wait">Not connected</span> When a week locks, the league's Discord gets the picks and the cards in play within 5 minutes. Discord: channel → Edit → Integrations → Webhooks → New Webhook → Copy URL.`;
+  }
+  $('setDiscordBtn').addEventListener('click', async () => {
+    try { await rpc('admin_set_discord', { p_admin_pin: apin(), p_url: $('setDiscord').value }); $('setDiscord').value = ''; msg('settingsMsg', 'Discord updated.', 'ok'); await loadDiscordStatus(); }
+    catch (e) { msg('settingsMsg', e.message, 'err'); }
+  });
+  $('adminAnnounce').addEventListener('click', async () => {
+    try {
+      const m = await rpc('admin_announce', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value) });
+      msg('adminResultsMsg', 'Posted to Discord:\n\n' + m, 'ok'); $('adminResultsMsg').firstChild.style.whiteSpace = 'pre-wrap';
+    } catch (e) { msg('adminResultsMsg', e.message, 'err'); }
+  });
   // ---- deal cards ----
   let dcImageData = null, dcLibId = null, dcLibImage = null;   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
   $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
@@ -914,7 +939,7 @@
     try { await rpc('admin_revoke_card', { p_admin_pin: apin(), p_card_id: Number(b.dataset.id) }); await loadAdminCards(); }
     catch (err) { msg('dcMsg', err.message, 'err'); }
   });
-  $('adminPin').addEventListener('change', () => { loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); });
+  $('adminPin').addEventListener('change', () => { loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); loadDiscordStatus().catch(() => {}); });
   $('chSave').addEventListener('click', async () => {
     try {
       if (!$('chSeason').value || !$('chOwner').value.trim()) throw new Error('Season and champion name are required.');
