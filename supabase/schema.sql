@@ -52,7 +52,7 @@ create table if not exists card_library (        -- the pool of card designs, ke
   id          serial primary key,
   name        text not null,
   kind        text not null default 'Enchantment',
-  effect      text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom')),
+  effect      text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse')),
   params      jsonb not null default '{}',
   rules       text,
   flavor      text,
@@ -67,7 +67,7 @@ create table if not exists cards (               -- commissioner's TCG-style enc
   owner_id        int  not null references owners(id) on delete cascade,
   name            text not null,
   kind            text not null default 'Enchantment',      -- printed type line
-  effect          text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom')),
+  effect          text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse')),
   params          jsonb not null default '{}',              -- multiply {"x":2} · flat {"amount":500000} · steal {"pct":25}
   rules           text,
   flavor          text,
@@ -80,6 +80,14 @@ create table if not exists cards (               -- commissioner's TCG-style enc
 );
 create unique index if not exists cards_one_in_play_per_week on cards (owner_id, tournament_id) where status = 'played';
 alter table cards add column if not exists library_id int references card_library(id) on delete set null;
+-- full_card: the image IS the finished card (title/text baked in) — show it as-is, no frame
+alter table cards        add column if not exists full_card boolean not null default false;
+alter table card_library add column if not exists full_card boolean not null default false;
+-- keep the effect lists in step on an existing database
+alter table cards        drop constraint if exists cards_effect_check;
+alter table cards        add  constraint cards_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse'));
+alter table card_library drop constraint if exists card_library_effect_check;
+alter table card_library add  constraint card_library_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse'));
 
 create table if not exists champions (           -- The White Stag Club: one league champion per season
   season int primary key,
@@ -164,6 +172,8 @@ declare
   a    text; tg text;
   wa numeric; wb numeric; x numeric; s numeric; tmp numeric;
   k text; v jsonb;
+  paired int[] := '{}';  -- fellowship pairs already resolved
+  fk text; pk text;
 begin
   select * into v_t from tournaments tt where tt.id = p_tournament_id;
   if v_t.id is null then return; end if;
@@ -184,7 +194,7 @@ begin
       w := w || jsonb_build_object(tg, 0); b := b || jsonb_build_object(tg, 0); m := m || jsonb_build_object(tg, 0);
     end if;
 
-    if c.effect in ('duel','steal','swap') and c.target_owner_id = any(sh) then
+    if c.effect in ('duel','steal','swap','curse') and c.target_owner_id = any(sh) then
       n := _note(n, a, c.name || ': fizzled — ' || _oname(c.target_owner_id) || ' was shielded');
       n := _note(n, tg, 'Shield blocked ' || _oname(c.owner_id) || '''s ' || c.name);
       continue;
@@ -227,6 +237,41 @@ begin
         m := jsonb_set(m, array[tg], to_jsonb(tmp));
         n := _note(n, a,  c.name || ': swapped points with ' || _oname(c.target_owner_id));
         n := _note(n, tg, c.name || ': ' || _oname(c.owner_id) || ' swapped points with you');
+      when 'fellowship' then
+        -- both partners must play the card on each other; resolved once per pair
+        if c.owner_id = any(paired) then
+          null;
+        elsif not exists (select 1 from cards p2 where p2.tournament_id = p_tournament_id and p2.status = 'played'
+                             and p2.effect = 'fellowship' and p2.owner_id = c.target_owner_id and p2.target_owner_id = c.owner_id) then
+          n := _note(n, a, c.name || ': fizzled — ' || _oname(c.target_owner_id) || ' did not join');
+        else
+          paired := paired || c.owner_id || c.target_owner_id;
+          x := coalesce((c.params->>'amount')::numeric, 500000);
+          if (w->>a)::numeric <= 0 or (w->>tg)::numeric <= 0 then
+            m := jsonb_set(m, array[a],  to_jsonb(0));
+            m := jsonb_set(m, array[tg], to_jsonb(0));
+            n := _note(n, a,  c.name || ': ' || case when (w->>a)::numeric <= 0 then 'you' else _oname(c.target_owner_id) end || ' missed the cut — both get $0');
+            n := _note(n, tg, c.name || ': ' || case when (w->>tg)::numeric <= 0 then 'you' else _oname(c.owner_id) end || ' missed the cut — both get $0');
+          else
+            m := jsonb_set(m, array[a],  to_jsonb((m->>a)::numeric + x));
+            m := jsonb_set(m, array[tg], to_jsonb((m->>tg)::numeric + x));
+            n := _note(n, a,  c.name || ': +$' || to_char(x, 'FM999,999,999,990') || ' with ' || _oname(c.target_owner_id));
+            n := _note(n, tg, c.name || ': +$' || to_char(x, 'FM999,999,999,990') || ' with ' || _oname(c.owner_id));
+          end if;
+        end if;
+      when 'curse' then
+        fk := nullif(trim(c.params->>'golfer'), '');
+        x  := coalesce((c.params->>'pct')::numeric, 0);
+        select p.golfer_key into pk from picks p where p.owner_id = c.target_owner_id and p.tournament_id = p_tournament_id;
+        if fk is not null and coalesce(pk, '') <> lower(trim(regexp_replace(fk, '\s+', ' ', 'g'))) then
+          m := jsonb_set(m, array[tg], to_jsonb(0));
+          n := _note(n, tg, c.name || ': did not pick ' || fk || ' — $0');
+          n := _note(n, a,  c.name || ': ' || _oname(c.target_owner_id) || ' defied the stocks ($0)');
+        else
+          m := jsonb_set(m, array[tg], to_jsonb(round((m->>tg)::numeric * (1 + x / 100))));
+          n := _note(n, tg, c.name || ': ' || x || '%' || case when fk is not null then ' (forced ' || fk || ')' else '' end);
+          n := _note(n, a,  c.name || ': ' || _oname(c.target_owner_id) || ' took ' || x || '%');
+        end if;
       when 'shield'   then n := _note(n, a, c.name || ': shielded');
       when 'mulligan' then n := _note(n, a, c.name || ': mulligan');
       else                 n := _note(n, a, c.name || ' (commissioner applies)');
@@ -272,6 +317,11 @@ $$;
 drop function if exists tournament_board(int);
 drop function if exists season_picks(int);
 drop function if exists my_picks(text, text, int);
+drop function if exists tournament_cards(int);
+drop function if exists my_cards(text, text);
+drop function if exists admin_list_library(text);
+drop function if exists admin_deal_card(text, text, text, text, text, jsonb, text, text, text);
+drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text);
 create or replace function tournament_board(p_tournament_id int)
 returns table (owner text, has_picked boolean, golfer text, winnings numeric,
                points numeric, submitted_at timestamptz, note text)
@@ -293,9 +343,9 @@ $$;
 
 -- Cards in play for a tournament — revealed at lock time, like picks.
 create or replace function tournament_cards(p_tournament_id int)
-returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text)
+returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text, full_card boolean)
 language sql stable security definer set search_path = public, extensions as $$
-  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name
+  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name, c.full_card
     from cards c
     join owners o on o.id = c.owner_id
     join tournaments t on t.id = c.tournament_id
@@ -363,18 +413,33 @@ end $$;
 
 create or replace function my_cards(p_owner text, p_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz)
+               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean)
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
     select c.id, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.status,
-           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at
+           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card
       from cards c
       left join tournaments t on t.id = c.tournament_id
       left join owners tg on tg.id = c.target_owner_id
      where c.owner_id = v_id and c.status <> 'revoked'
      order by (c.status = 'held') desc, c.dealt_at, c.id;
+end $$;
+
+-- Cards played ON me that constrain my pick this week (a curse's forced golfer). Only the
+-- victim learns this before lock — and only the card, not who played it.
+create or replace function my_constraints(p_owner text, p_pin text, p_tournament_id int)
+returns table (card text, golfer text, pct numeric)
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare v_id int := _owner_id(p_owner, p_pin);
+begin
+  return query
+    select c.name, nullif(trim(c.params->>'golfer'), ''), coalesce((c.params->>'pct')::numeric, 0)
+      from cards c
+     where c.target_owner_id = v_id and c.tournament_id = p_tournament_id and c.status = 'played' and c.effect = 'curse'
+       and not exists (select 1 from cards s where s.owner_id = v_id and s.tournament_id = p_tournament_id and s.status = 'played' and s.effect = 'shield')
+     order by c.played_at;
 end $$;
 
 create or replace function play_card(p_owner text, p_pin text, p_card_id int, p_tournament_id int, p_target text default null)
@@ -391,9 +456,9 @@ begin
   select * into v_t from tournaments tt where tt.id = p_tournament_id;
   if v_t.id is null then raise exception 'Unknown tournament'; end if;
   if now() >= v_t.lock_at then raise exception 'Too late — the % has already started', v_t.name; end if;
-  if v_c.effect in ('duel','steal','swap') then
+  if v_c.effect in ('duel','steal','swap','curse','fellowship') then
     select o.id into v_target from owners o where lower(o.name) = lower(trim(coalesce(p_target, ''))) and o.active;
-    if v_target is null then raise exception 'Choose an opponent for this card'; end if;
+    if v_target is null then raise exception 'Choose % for this card', case when v_c.effect = 'fellowship' then 'a partner' else 'an opponent' end; end if;
     if v_target = v_owner then raise exception 'You cannot target yourself'; end if;
   end if;
   if exists (select 1 from cards cd where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played') then
@@ -435,6 +500,8 @@ declare
   v_used   text;
   v_golfer_prev text;
   v_prev   text;
+  v_curse  text;
+  v_forced text;
 begin
   if v_golfer is null or length(v_golfer) < 3 then
     raise exception 'Please enter a golfer''s full name';
@@ -446,10 +513,21 @@ begin
     raise exception 'Picks for % are locked (tournament has started)', v_t.name;
   end if;
 
+  -- A curse with a forced golfer (In the Stocks) dictates this owner's pick.
+  select cd.name, nullif(trim(cd.params->>'golfer'), '') into v_curse, v_forced
+    from cards cd
+   where cd.target_owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played' and cd.effect = 'curse'
+     and nullif(trim(cd.params->>'golfer'), '') is not null
+     and not exists (select 1 from cards s where s.owner_id = v_owner and s.tournament_id = p_tournament_id and s.status = 'played' and s.effect = 'shield')
+   order by cd.played_at limit 1;
+  if v_forced is not null and lower(trim(regexp_replace(v_forced, '\s+', ' ', 'g'))) <> v_key then
+    raise exception '%: you must pick % this week', v_curse, v_forced;
+  end if;
+
   -- No mulligans: a golfer may be used once per season (changing your pick
   -- for THIS tournament before lock is fine) — unless a Mulligan card is in
-  -- play for this tournament.
-  if not exists (select 1 from cards cd where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id
+  -- play for this tournament, or the pick is being forced by a curse.
+  if v_forced is null and not exists (select 1 from cards cd where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id
                     and cd.status = 'played' and cd.effect = 'mulligan') then
     select t.name, p.golfer into v_used, v_golfer_prev
       from picks p join tournaments t on t.id = p.tournament_id
@@ -541,7 +619,7 @@ end $$;
 
 create or replace function admin_deal_card(p_admin_pin text, p_owner text, p_name text, p_kind text, p_effect text,
                                            p_params jsonb default '{}', p_rules text default null,
-                                           p_flavor text default null, p_image text default null)
+                                           p_flavor text default null, p_image text default null, p_full_card boolean default false)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_owner int; v_id int;
 begin
@@ -549,9 +627,9 @@ begin
   select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
   if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
   if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
-  insert into cards (owner_id, name, kind, effect, params, rules, flavor, image)
+  insert into cards (owner_id, name, kind, effect, params, rules, flavor, image, full_card)
   values (v_owner, trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect,
-          coalesce(p_params, '{}'), nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''))
+          coalesce(p_params, '{}'), nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false))
   returning id into v_id;
   return v_id;
 end $$;
@@ -560,7 +638,7 @@ end $$;
 
 create or replace function admin_list_library(p_admin_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               retired boolean, times_dealt int, in_play int, created_at timestamptz)
+               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean)
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
@@ -568,7 +646,7 @@ begin
     select l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.retired,
            (select count(*) from cards c where c.library_id = l.id and c.status <> 'revoked')::int,
            (select count(*) from cards c where c.library_id = l.id and c.status = 'held')::int,
-           l.created_at
+           l.created_at, l.full_card
       from card_library l
      order by l.retired, lower(l.name);
 end $$;
@@ -576,22 +654,23 @@ end $$;
 -- Create (p_id null) or update a library card. A null p_image on update keeps the existing artwork.
 create or replace function admin_save_library_card(p_admin_pin text, p_id int, p_name text, p_kind text, p_effect text,
                                                    p_params jsonb default '{}', p_rules text default null,
-                                                   p_flavor text default null, p_image text default null)
+                                                   p_flavor text default null, p_image text default null,
+                                                   p_full_card boolean default null)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int;
 begin
   perform _check_admin(p_admin_pin);
   if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
   if p_id is null then
-    insert into card_library (name, kind, effect, params, rules, flavor, image)
+    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card)
     values (trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect, coalesce(p_params, '{}'),
-            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''))
+            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false))
     returning id into v_id;
   else
     update card_library
        set name = trim(p_name), kind = coalesce(nullif(trim(p_kind), ''), 'Enchantment'), effect = p_effect,
            params = coalesce(p_params, '{}'), rules = nullif(trim(p_rules), ''), flavor = nullif(trim(p_flavor), ''),
-           image = coalesce(nullif(p_image, ''), image), updated_at = now()
+           image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), updated_at = now()
      where id = p_id returning id into v_id;
     if v_id is null then raise exception 'No such library card'; end if;
   end if;
@@ -616,8 +695,8 @@ begin
   if l.id is null then raise exception 'No such library card'; end if;
   select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
   if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
-  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image)
-  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image)
+  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card)
+  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card)
   returning id into v_id;
   return v_id;
 end $$;
@@ -668,9 +747,9 @@ revoke execute on function _check_admin(text) from public, anon, authenticated;
 revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
-  my_cards(text, text), play_card(text, text, int, int, text), unplay_card(text, text, int),
-  admin_deal_card(text, text, text, text, text, jsonb, text, text, text), admin_list_cards(text), admin_revoke_card(text, int),
-  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text),
+  my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
+  admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),

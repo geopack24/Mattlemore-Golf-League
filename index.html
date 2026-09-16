@@ -129,24 +129,35 @@
   .champ.latest{border-color:rgba(255,255,255,.55);box-shadow:0 0 30px -8px rgba(255,255,255,.45)}
   .champ.latest .yr{color:#fff}
   .empty{color:var(--muted);font-style:italic;padding:8px 0}
-  /* ---- cards (TCG frames) ---- */
+  /* ---- cards (TCG frames — mirrors the league's printed cards: black body, gold filigree, parchment panels) ---- */
   .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
   .hand.mini{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
-  .tcg{background:linear-gradient(180deg,#dcc47c,#b4923b);border-radius:14px;padding:9px;color:#1d1408;box-shadow:0 18px 40px -18px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,255,255,.35);position:relative}
-  .tcg::before{content:"";position:absolute;inset:4px;border:1px solid rgba(60,40,10,.35);border-radius:11px;pointer-events:none}
-  .tcg-title{font-family:var(--display);font-weight:700;font-size:15px;letter-spacing:.5px;background:#efe3bd;border:1px solid rgba(60,40,10,.4);border-radius:8px;padding:6px 10px}
-  .tcg-art{margin-top:7px;aspect-ratio:4/3;border:1px solid rgba(60,40,10,.4);border-radius:6px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#3a2566,#150c28 70%);display:flex;align-items:center;justify-content:center}
+  .tcg{--parch:#e7dcbd;--parch-2:#d6c69c;--cgold:#b8934a;--cgold-2:#7a5c22;--inkc:#1a1208;
+    position:relative;background:radial-gradient(120% 90% at 50% 0%,#242424,#0e0e0e 70%);border-radius:14px;padding:14px;color:var(--inkc);
+    box-shadow:0 0 0 1px #000,0 0 0 3px var(--cgold-2),0 0 0 4px #241c0c,0 22px 44px -18px rgba(0,0,0,.95);font-family:"Cormorant Garamond",Georgia,serif}
+  .tcg::before{content:"";position:absolute;inset:6px;border:1px solid var(--cgold);border-radius:10px;pointer-events:none;opacity:.9;
+    background:
+      radial-gradient(circle at 0 0,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 0 0/22px 22px no-repeat,
+      radial-gradient(circle at 100% 0,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 100% 0/22px 22px no-repeat,
+      radial-gradient(circle at 0 100%,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 0 100%/22px 22px no-repeat,
+      radial-gradient(circle at 100% 100%,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 100% 100%/22px 22px no-repeat}
+  .tcg-title{font-weight:700;font-size:17px;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:6px 12px;box-shadow:inset 0 0 0 1px var(--cgold),0 2px 0 rgba(0,0,0,.4)}
+  .tcg-art{margin-top:8px;aspect-ratio:1/1;border:2px solid #2b1f0c;border-radius:8px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--cgold)}
   .tcg-art img{width:100%;height:100%;object-fit:cover;display:block}
   .tcg-art .crest{width:55%;height:55%;opacity:.9}
-  .tcg-type{margin-top:7px;font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.6px;background:#efe3bd;border:1px solid rgba(60,40,10,.4);border-radius:8px;padding:5px 10px;display:flex;justify-content:space-between;gap:8px;align-items:center}
-  .tcg-type span{font-family:"Cormorant Garamond",serif;font-weight:600;font-size:13px;letter-spacing:0;color:#4a3a14;text-align:right}
-  .tcg-text{margin-top:7px;background:#f3ead0;border:1px solid rgba(60,40,10,.4);border-radius:8px;padding:10px 12px;min-height:96px;font-size:15px;line-height:1.35}
-  .tcg-text p{margin:0 0 8px}
+  .tcg-type{margin-top:8px;font-weight:700;font-size:15px;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:5px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;box-shadow:inset 0 0 0 1px var(--cgold)}
+  .tcg-type span{font-weight:600;font-size:13px;color:#5a4620;text-align:right;font-style:italic}
+  .tcg-text{margin-top:8px;background:linear-gradient(180deg,var(--parch),var(--parch-2));border:2px solid #2b1f0c;border-radius:9px;padding:12px 14px;min-height:104px;font-size:16px;line-height:1.35;font-weight:500;box-shadow:inset 0 0 0 1px var(--cgold)}
+  .tcg-text p{margin:0 0 10px}
   .tcg-text p:last-child{margin:0}
-  .tcg-text .fl{font-style:italic;color:#4a3a14}
-  .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
+  .tcg-text .fl{font-style:italic;color:#4a3a14;border-top:1px solid rgba(43,31,12,.25);padding-top:8px}
+  .tcg-foot{margin-top:10px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
   .tcg-foot label{color:#c9b8e8}
   .tcg-foot .f{flex:1 1 140px}
+  .tcg.full{padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
+  .tcg.full::before{display:none}
+  .tcg.full > img{display:block;width:100%;border-radius:14px}
+  .tcg.full .tcg-foot{margin-top:8px}
   .tcg.played{filter:saturate(.85)}
   .tcg.retired{opacity:.55;filter:grayscale(.7)}
   .lib-meta{font-size:12px;color:var(--muted);margin-bottom:8px;font-style:italic}
@@ -356,14 +367,17 @@
       </div>
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Effect</label><select id="dcEffect"></select></div>
-        <div class="f sm" id="dcParamWrap"><label id="dcParamLabel">Value</label><input id="dcParam" type="number" step="any"></div>
       </div>
+      <div class="row" id="dcParams" style="margin-top:10px"></div>
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Rules text</label><input id="dcRules" placeholder="You're going head to head with a player of your choice. The winner gets double the prize money, loser gets nothing."></div>
       </div>
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Flavor text</label><input id="dcFlavor" placeholder="“Dying is easy, young man. Golf is harder.”"></div>
         <div class="f"><label>Artwork</label><input id="dcImage" type="file" accept="image/*"></div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="chk"><input type="checkbox" id="dcFull"> the image is the whole card (title, type and text already on it) — show it as-is</label>
       </div>
       <div class="row" style="margin-top:12px;align-items:center">
         <div><button class="btn" id="dcDeal">Deal card</button></div>
@@ -475,19 +489,27 @@
 
   // ---- navigation ----
   // ---- card effects the scoring engine (schema.sql: scored_points) understands ----
+  // params: inputs the designer shows for the effect; target: label for the owner the card is played on (absent = no target)
   const EFFECTS = {
-    multiply: { label: 'Multiply my points', param: 'x', paramLabel: 'Multiplier (e.g. 2)', target: false, sum: p => `My points ×${p.x ?? 2}` },
-    flat:     { label: 'Bonus / penalty ($)', param: 'amount', paramLabel: 'Amount in $ (negative = penalty)', target: false,
-                sum: p => `${Number(p.amount || 0) < 0 ? '−' : '+'}${fmt$(Math.abs(Number(p.amount || 0)))} to my points` },
-    duel:     { label: 'Duel — winner ×2, loser 0', target: true, sum: () => 'Head to head: more prize money wins ×2, loser gets 0' },
-    steal:    { label: "Steal % of a rival's points", param: 'pct', paramLabel: 'Percent (e.g. 25)', target: true, sum: p => `Take ${p.pct ?? 25}% of a rival's points` },
-    swap:     { label: 'Swap points with a rival', target: true, sum: () => "Swap this week's points with a rival" },
-    shield:   { label: 'Shield', target: false, sum: () => "Rivals' cards cannot touch me this week" },
-    mulligan: { label: 'Mulligan', target: false, sum: () => 'Reuse a golfer this week' },
-    custom:   { label: 'Custom (commissioner applies by hand)', target: false, sum: () => 'Commissioner applies the effect by hand' },
+    multiply:   { label: 'Multiply my points', params: [{ k: 'x', l: 'Multiplier (e.g. 2)', t: 'number' }], sum: p => `My points ×${p.x ?? 2}` },
+    flat:       { label: 'Bonus / penalty ($)', params: [{ k: 'amount', l: 'Amount in $ (negative = penalty)', t: 'number' }],
+                  sum: p => `${Number(p.amount || 0) < 0 ? '−' : '+'}${fmt$(Math.abs(Number(p.amount || 0)))} to my points` },
+    duel:       { label: 'Duel — winner ×2, loser 0', params: [], target: 'Opponent', sum: () => 'Head to head: more prize money wins ×2, loser gets 0' },
+    steal:      { label: "Steal % of a rival's points", params: [{ k: 'pct', l: 'Percent (e.g. 25)', t: 'number' }], target: 'Victim', sum: p => `Take ${p.pct ?? 25}% of a rival's points` },
+    swap:       { label: 'Swap points with a rival', params: [], target: 'Opponent', sum: () => "Swap this week's points with a rival" },
+    curse:      { label: "Curse — force a rival's pick and/or penalize them", target: 'Victim',
+                  params: [{ k: 'golfer', l: 'Forced golfer (blank = none)', t: 'text' }, { k: 'pct', l: 'Penalty % (e.g. -25)', t: 'number' }],
+                  sum: p => [p.golfer ? `Victim must pick ${p.golfer}` : null, Number(p.pct || 0) ? `${p.pct}% to their points` : null].filter(Boolean).join(' · ') || 'Curse a rival' },
+    fellowship: { label: 'Fellowship — partner bonus; both bust if either misses the cut', target: 'Partner',
+                  params: [{ k: 'amount', l: 'Bonus each ($)', t: 'number' }],
+                  sum: p => `Partner up: +${fmt$(p.amount ?? 500000)} each — $0 for both if either misses the cut` },
+    shield:     { label: 'Shield', params: [], sum: () => "Rivals' cards cannot touch me this week" },
+    mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
+    custom:     { label: 'Custom (commissioner applies by hand)', params: [], sum: () => 'Commissioner applies the effect by hand' },
   };
   function tcgHTML(c, foot) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
+    if (c.full_card && c.image) return `<div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}">${foot ? `<div class="tcg-foot">${foot}</div>` : ''}</div>`;
     return `<div class="tcg ${c.status || ''}">
       <div class="tcg-title">${esc(c.name)}</div>
       <div class="tcg-art">${c.image ? `<img src="${esc(c.image)}" alt="">` : '<svg class="crest" aria-hidden="true"><use href="#stag"/></svg>'}</div>
@@ -569,7 +591,7 @@
       const cards = await rpc('tournament_cards', { p_tournament_id: id });
       $('boardCards').innerHTML = cards.length
         ? `<h2 style="margin-top:20px">Cards in play</h2><p class="sub">Revealed at lock. Applied to the points above in the order they were played.</p>
-           <div class="hand mini">${cards.map(c => tcgHTML(c, `Played by <b>${esc(c.owner)}</b>${c.target ? ` against <b>${esc(c.target)}</b>` : ''}`)).join('')}</div>`
+           <div class="hand mini">${cards.map(c => tcgHTML(c, `Played by <b>${esc(c.owner)}</b>${c.target ? ` ${c.effect === 'fellowship' ? 'with' : 'against'} <b>${esc(c.target)}</b>` : ''}`)).join('')}</div>`
         : '';
     } else { $('boardCards').innerHTML = ''; await refreshUsedHint(); }
   }
@@ -578,10 +600,12 @@
     $('usedHint').textContent = '';
     if (!name || !pin) return;
     try {
-      const mine = await rpc('my_picks', { p_owner: name, p_pin: pin });
-      const cur = mine.find(p => p.tournament_id === Number($('boardTournament').value));
-      const used = mine.filter(p => p.tournament_id !== Number($('boardTournament').value)).map(p => p.golfer);
-      $('usedHint').innerHTML = (cur ? `Current pick for this week: <b>${esc(cur.golfer)}</b>. ` : '') +
+      const tid = Number($('boardTournament').value);
+      const [mine, cons] = await Promise.all([rpc('my_picks', { p_owner: name, p_pin: pin }), rpc('my_constraints', { p_owner: name, p_pin: pin, p_tournament_id: tid })]);
+      const cur = mine.find(p => p.tournament_id === tid);
+      const used = mine.filter(p => p.tournament_id !== tid).map(p => p.golfer);
+      const warn = cons.map(k => `<div class="msg err" style="margin:0 0 8px">⚠ <b>${esc(k.card)}</b> has been played on you this week${k.golfer ? ` — you must pick <b>${esc(k.golfer)}</b>` : ''}${Number(k.pct) ? ` (${k.pct}% to your points)` : ''}.</div>`).join('');
+      $('usedHint').innerHTML = warn + (cur ? `Current pick for this week: <b>${esc(cur.golfer)}</b>. ` : '') +
         (used.length ? `Already used this season (not allowed again): ${used.map(esc).join(', ')}` : 'No golfers used yet this season.');
       remember(name, pin);
     } catch { /* wrong pin — stay quiet until they submit */ }
@@ -654,13 +678,13 @@
         if (c.status === 'held') {
           foot = `<div class="row">
             <div class="f"><label>Play on</label><select class="play-t">${open.map(t => `<option value="${t.id}">${esc(t.name)} · ${fmtDate(t.start_date)}</option>`).join('')}</select></div>
-            ${e.target ? `<div class="f"><label>Against</label><select class="play-target">${rivals.map(o => `<option>${esc(o.name)}</option>`).join('')}</select></div>` : ''}
+            ${e.target ? `<div class="f"><label>${esc(e.target)}</label><select class="play-target">${rivals.map(o => `<option>${esc(o.name)}</option>`).join('')}</select></div>` : ''}
             <div><button class="btn play-btn" data-id="${c.id}" ${open.length ? '' : 'disabled'}>Play</button></div></div>`;
         } else if (!c.locked) {
-          foot = `<span class="tag in">In play</span> ${esc(c.tournament)}${c.target ? ` vs <b>${esc(c.target)}</b>` : ''}
+          foot = `<span class="tag in">In play</span> ${esc(c.tournament)}${c.target ? ` ${c.effect === 'fellowship' ? 'with' : 'vs'} <b>${esc(c.target)}</b>` : ''}
             <button class="btn ghost unplay-btn" data-id="${c.id}" style="margin-left:8px;padding:7px 12px">Take back</button>`;
         } else {
-          foot = `<span class="tag lock">Played</span> ${esc(c.tournament)}${c.target ? ` vs <b>${esc(c.target)}</b>` : ''}`;
+          foot = `<span class="tag lock">Played</span> ${esc(c.tournament)}${c.target ? ` ${c.effect === 'fellowship' ? 'with' : 'vs'} <b>${esc(c.target)}</b>` : ''}`;
         }
         return tcgHTML(c, foot);
       }).join('') || '<div class="card" style="grid-column:1/-1"><div class="empty">Your hand is empty. The commissioner deals cards when the spirit moves him.</div></div>';
@@ -734,18 +758,29 @@
   // ---- deal cards ----
   let dcImageData = null, dcLibId = null, dcLibImage = null;   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
   $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
-  const dcParams = () => { const e = EFFECTS[$('dcEffect').value]; const v = $('dcParam').value; return e.param && v !== '' ? { [e.param]: Number(v) } : {}; };
+  const dcParams = () => Object.fromEntries((EFFECTS[$('dcEffect').value].params).map(p => {
+    const v = ($('dcp_' + p.k)?.value ?? '').trim(); return v === '' ? null : [p.k, p.t === 'number' ? Number(v) : v];
+  }).filter(Boolean));
+  function dcRenderParams(values = {}) {                 // rebuild the effect's inputs only when the effect changes
+    const eff = $('dcEffect').value, e = EFFECTS[eff], box = $('dcParams');
+    if (box.dataset.effect !== eff) {
+      box.dataset.effect = eff;
+      box.innerHTML = e.params.map(p => `<div class="f"><label>${esc(p.l)}</label><input id="dcp_${p.k}" type="${p.t}" ${p.t === 'number' ? 'step="any"' : ''}></div>`).join('');
+      box.querySelectorAll('input').forEach(i => i.addEventListener('input', dcSync));
+    }
+    box.classList.toggle('hidden', !e.params.length);
+    e.params.forEach(p => { if (values[p.k] != null) $('dcp_' + p.k).value = values[p.k]; });
+  }
   function dcSync() {
-    const e = EFFECTS[$('dcEffect').value];
-    $('dcParamWrap').classList.toggle('hidden', !e.param); $('dcParamLabel').textContent = e.paramLabel || 'Value';
+    dcRenderParams();
     $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: dcParams(),
-      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage });
+      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage, full_card: $('dcFull').checked });
   }
   const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
-    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData });
+    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcParam','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment';
-    dcImageData = null; dcLibId = null; dcLibImage = null;
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false;
+    $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
   $('dcCancel').addEventListener('click', dcReset);
@@ -756,15 +791,18 @@
       dcReset(); await loadLibrary();
     } catch (e) { msg('dcMsg', e.message, 'err'); }
   });
-  ['dcName','dcKind','dcEffect','dcParam','dcRules','dcFlavor'].forEach(id => $(id).addEventListener('input', dcSync));
+  ['dcName','dcKind','dcEffect','dcRules','dcFlavor'].forEach(id => $(id).addEventListener('input', dcSync));
+  $('dcFull').addEventListener('change', dcSync);
   $('dcImage').addEventListener('change', () => {
     const f = $('dcImage').files[0]; if (!f) { dcImageData = null; dcSync(); return; }
     const img = new Image(), url = URL.createObjectURL(f);
-    img.onload = () => {                                  // shrink so the card stays small in the database
-      const k = Math.min(1, 640 / img.width), cv = document.createElement('canvas');
+    img.onload = () => {
+      const full = img.height / img.width > 1.25;        // printed cards are portrait; plain artwork is square-ish
+      if (full) $('dcFull').checked = true;
+      const k = Math.min(1, (full ? 760 : 640) / img.width), cv = document.createElement('canvas');   // shrink so the card stays small in the database
       cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      dcImageData = cv.toDataURL('image/jpeg', 0.82); URL.revokeObjectURL(url); dcSync();
+      dcImageData = cv.toDataURL('image/jpeg', 0.84); URL.revokeObjectURL(url); dcSync();
     };
     img.src = url;
   });
@@ -808,7 +846,7 @@
         const l = libRows.find(x => x.id === Number(edit.dataset.id)); if (!l) return;
         dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
         $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
-        const ef = EFFECTS[l.effect]; $('dcParam').value = ef?.param && l.params?.[ef.param] != null ? l.params[ef.param] : '';
+        $('dcFull').checked = !!l.full_card; dcRenderParams(l.params || {});
         $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
         $('dcTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
