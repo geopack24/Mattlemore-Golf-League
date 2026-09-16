@@ -115,6 +115,10 @@ alter table cards       enable row level security;
 alter table card_library enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
+-- the announcer edge function reads with the service role (tables made via the SQL API don't get its default grants)
+grant usage on schema public to service_role;
+grant all on all tables in schema public to service_role;
+grant all on all sequences in schema public to service_role;
 
 -- ---------- Helpers ------------------------------------------------------
 
@@ -816,14 +820,46 @@ begin
   return msg;
 end $$;
 
-create or replace function _discord_post(p_content text) returns bigint
+-- Cards in play with their art, for the announcer's image embeds (locked weeks only).
+create or replace function _discord_cards(p_tournament_id int)
+returns table (owner text, target text, name text, kind text, effect text, rules text, flavor text, image text, summary text)
+language sql stable security definer set search_path = public, extensions as $$
+  select o.name, tg.name, c.name, c.kind, c.effect, c.rules, c.flavor, c.image,
+         case c.effect
+           when 'multiply'   then 'Points ×' || coalesce(c.params->>'x', '2')
+           when 'flat'       then 'Bonus $' || coalesce(c.params->>'amount', '0')
+           when 'duel'       then 'Head to head: more prize money wins ×2, loser gets 0'
+           when 'steal'      then 'Takes ' || coalesce(c.params->>'pct', '25') || '% of the victim''s points'
+           when 'swap'       then 'Swaps points with the target'
+           when 'shield'     then 'Rivals'' cards cannot touch the holder this week'
+           when 'mulligan'   then 'May reuse a golfer this week'
+           when 'fellowship' then 'Partners get +$' || coalesce(c.params->>'amount', '500000') || ' each; $0 for both if either misses the cut'
+           when 'curse'      then coalesce('Victim must pick ' || nullif(c.params->>'golfer', ''), 'Curse') || coalesce(' · ' || nullif(c.params->>'pct', '') || '% to their points', '')
+           else 'Commissioner rules on it at results time' end
+    from cards c join owners o on o.id = c.owner_id join tournaments t on t.id = c.tournament_id
+    left join owners tg on tg.id = c.target_owner_id
+   where c.tournament_id = p_tournament_id and c.status = 'played' and now() >= t.lock_at
+   order by c.played_at;
+$$;
+
+-- Posts the announcement. With the announcer edge function configured (settings.announce_key) the
+-- database calls it and it attaches card images; otherwise fall back to a text-only webhook post.
+create or replace function _discord_post(p_tournament_id int) returns bigint
 language plpgsql security definer set search_path = public, extensions as $$
-declare hook text;
+declare hook text; akey text; fn_url text;
 begin
   select value into hook from settings where key = 'discord_webhook';
   if coalesce(hook, '') = '' then raise exception 'Discord is not connected — paste the webhook URL under Commissioner → Settings'; end if;
+  select value into akey from settings where key = 'announce_key';
+  select value into fn_url from settings where key = 'announce_url';
+  if coalesce(akey, '') <> '' and coalesce(fn_url, '') <> '' then
+    return net.http_post(url := fn_url,
+                         body := jsonb_build_object('tournament_id', p_tournament_id),
+                         headers := jsonb_build_object('Content-Type', 'application/json', 'x-announce-key', akey),
+                         timeout_milliseconds := 30000);
+  end if;
   return net.http_post(url := hook,
-                       body := jsonb_build_object('content', left(p_content, 1990), 'username', 'The White Stag'),
+                       body := jsonb_build_object('content', left(_discord_message(p_tournament_id), 1990), 'username', 'The White Stag'),
                        headers := '{"Content-Type":"application/json"}'::jsonb);
 end $$;
 
@@ -836,7 +872,7 @@ begin
   for r in select tt.id from tournaments tt
             where tt.lock_at <= now() and tt.lock_at > now() - interval '2 days' and tt.announced_at is null
             order by tt.lock_at loop
-    perform _discord_post(_discord_message(r.id));
+    perform _discord_post(r.id);
     update tournaments set announced_at = now() where id = r.id;
     n := n + 1;
   end loop;
@@ -850,7 +886,7 @@ begin
   perform _check_admin(p_admin_pin);
   m := _discord_message(p_tournament_id);
   if m is null then raise exception 'Unknown tournament'; end if;
-  perform _discord_post(m);
+  perform _discord_post(p_tournament_id);
   update tournaments set announced_at = coalesce(announced_at, now()) where id = p_tournament_id and now() >= lock_at;
   return m;
 end $$;
@@ -901,7 +937,9 @@ revoke all on all functions in schema public from public, anon, authenticated;
 revoke execute on function _owner_id(text, text) from public, anon, authenticated;
 revoke execute on function _check_admin(text) from public, anon, authenticated;
 revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
-revoke execute on function _discord_message(int), _discord_post(text), announce_locked() from public, anon, authenticated;
+drop function if exists _discord_post(text);
+revoke execute on function _discord_message(int), _discord_cards(int), _discord_post(int), announce_locked() from public, anon, authenticated;
+grant execute on function _discord_message(int), _discord_cards(int) to service_role;   -- the announcer edge function
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
   revealed_card_names(), revealed_card(text),
