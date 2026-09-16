@@ -596,6 +596,9 @@ create or replace function admin_delete_tournament(p_admin_pin text, p_tournamen
 returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
+  -- cards played on the deleted week go back to their owners' hands
+  update cards set status = 'held', tournament_id = null, target_owner_id = null, played_at = null
+   where tournament_id = p_tournament_id and status = 'played';
   delete from tournaments where id = p_tournament_id;
 end $$;
 
