@@ -133,7 +133,8 @@
   .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
   .hand.mini{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
   .tcg{--parch:#e7dcbd;--parch-2:#d6c69c;--cgold:#b8934a;--cgold-2:#7a5c22;--inkc:#1a1208;
-    position:relative;background:radial-gradient(120% 90% at 50% 0%,#242424,#0e0e0e 70%);border-radius:14px;padding:14px;color:var(--inkc);
+    position:relative;display:grid;grid-template-rows:auto minmax(0,10fr) auto minmax(0,7fr);gap:8px;aspect-ratio:2/3;
+    background:radial-gradient(120% 90% at 50% 0%,#242424,#0e0e0e 70%);border-radius:14px;padding:14px;color:var(--inkc);
     box-shadow:0 0 0 1px #000,0 0 0 3px var(--cgold-2),0 0 0 4px #241c0c,0 22px 44px -18px rgba(0,0,0,.95);font-family:"Cormorant Garamond",Georgia,serif}
   .tcg::before{content:"";position:absolute;inset:6px;border:1px solid var(--cgold);border-radius:10px;pointer-events:none;opacity:.9;
     background:
@@ -141,23 +142,23 @@
       radial-gradient(circle at 100% 0,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 100% 0/22px 22px no-repeat,
       radial-gradient(circle at 0 100%,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 0 100%/22px 22px no-repeat,
       radial-gradient(circle at 100% 100%,transparent 9px,var(--cgold) 9.5px,var(--cgold) 10.5px,transparent 11px) 100% 100%/22px 22px no-repeat}
-  .tcg-title{font-weight:700;font-size:17px;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:6px 12px;box-shadow:inset 0 0 0 1px var(--cgold),0 2px 0 rgba(0,0,0,.4)}
-  .tcg-art{margin-top:8px;aspect-ratio:1/1;border:2px solid #2b1f0c;border-radius:8px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--cgold)}
+  .tcg-title{font-weight:700;font-size:17px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:6px 12px;box-shadow:inset 0 0 0 1px var(--cgold),0 2px 0 rgba(0,0,0,.4)}
+  .tcg-art{min-height:0;border:2px solid #2b1f0c;border-radius:8px;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%);display:flex;align-items:center;justify-content:center;box-shadow:inset 0 0 0 1px var(--cgold)}
   .tcg-art img{width:100%;height:100%;object-fit:cover;display:block}
   .tcg-art .crest{width:55%;height:55%;opacity:.9}
-  .tcg-type{margin-top:8px;font-weight:700;font-size:15px;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:5px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;box-shadow:inset 0 0 0 1px var(--cgold)}
+  .tcg-type{font-weight:700;font-size:15px;background:linear-gradient(180deg,#efe6c9,var(--parch));border:2px solid #2b1f0c;border-radius:9px;padding:5px 12px;display:flex;justify-content:space-between;gap:8px;align-items:center;box-shadow:inset 0 0 0 1px var(--cgold)}
   .tcg-type span{font-weight:600;font-size:13px;color:#5a4620;text-align:right;font-style:italic}
-  .tcg-text{margin-top:8px;background:linear-gradient(180deg,var(--parch),var(--parch-2));border:2px solid #2b1f0c;border-radius:9px;padding:12px 14px;min-height:104px;font-size:16px;line-height:1.35;font-weight:500;box-shadow:inset 0 0 0 1px var(--cgold)}
+  .tcg-text{min-height:0;overflow:hidden;background:linear-gradient(180deg,var(--parch),var(--parch-2));border:2px solid #2b1f0c;border-radius:9px;padding:10px 12px;font-size:16px;line-height:1.3;font-weight:500;box-shadow:inset 0 0 0 1px var(--cgold)}
   .tcg-text p{margin:0 0 10px}
   .tcg-text p:last-child{margin:0}
   .tcg-text .fl{font-style:italic;color:#4a3a14;border-top:1px solid rgba(43,31,12,.25);padding-top:8px}
-  .tcg-foot{margin-top:10px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
+  .cardwrap{display:flex;flex-direction:column}
+  .tcg-foot{margin-top:8px;background:rgba(17,10,30,.88);color:var(--ink);border-radius:8px;padding:10px 12px;font-size:14px}
   .tcg-foot label{color:#c9b8e8}
   .tcg-foot .f{flex:1 1 140px}
-  .tcg.full{padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
+  .tcg.full{display:block;aspect-ratio:auto;padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
   .tcg.full::before{display:none}
   .tcg.full > img{display:block;width:100%;border-radius:14px}
-  .tcg.full .tcg-foot{margin-top:8px}
   .tcg.played{filter:saturate(.85)}
   .tcg.retired{opacity:.55;filter:grayscale(.7)}
   .lib-meta{font-size:12px;color:var(--muted);margin-bottom:8px;font-style:italic}
@@ -509,15 +510,25 @@
   };
   function tcgHTML(c, foot) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
-    if (c.full_card && c.image) return `<div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}">${foot ? `<div class="tcg-foot">${foot}</div>` : ''}</div>`;
-    return `<div class="tcg ${c.status || ''}">
+    const footHTML = foot ? `<div class="tcg-foot">${foot}</div>` : '';
+    if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}"></div>${footHTML}</div>`;
+    return `<div class="cardwrap"><div class="tcg ${c.status || ''}">
       <div class="tcg-title">${esc(c.name)}</div>
       <div class="tcg-art">${c.image ? `<img src="${esc(c.image)}" alt="">` : '<svg class="crest" aria-hidden="true"><use href="#stag"/></svg>'}</div>
       <div class="tcg-type">${esc(c.kind || 'Enchantment')}<span>${esc(e.sum(c.params || {}))}</span></div>
       <div class="tcg-text">${c.rules ? `<p>${esc(c.rules)}</p>` : ''}${c.flavor ? `<p class="fl">${esc(c.flavor)}</p>` : ''}</div>
-      ${foot ? `<div class="tcg-foot">${foot}</div>` : ''}
-    </div>`;
+    </div>${footHTML}</div>`;
   }
+  // Cards keep a fixed 2:3 shape; long rules text shrinks (down to 9px) instead of stretching the card.
+  function fitCards(root = document) {
+    requestAnimationFrame(() => root.querySelectorAll('.tcg:not(.full)').forEach(card => {
+      const t = card.querySelector('.tcg-text'), h = card.querySelector('.tcg-title');
+      if (t) { let s = 16; t.style.fontSize = s + 'px'; while (t.scrollHeight > t.clientHeight + 1 && s > 9) { s -= 0.5; t.style.fontSize = s + 'px'; } }
+      if (h) { let s = 17; h.style.fontSize = s + 'px'; while (h.scrollWidth > h.clientWidth + 1 && s > 11) { s -= 0.5; h.style.fontSize = s + 'px'; } }
+    }));
+  }
+  if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
+  let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
   const views = ['board','standings','mine','cards','season','stag','admin'];
   function show(view) {
@@ -593,6 +604,7 @@
         ? `<h2 style="margin-top:20px">Cards in play</h2><p class="sub">Revealed at lock. Applied to the points above in the order they were played.</p>
            <div class="hand mini">${cards.map(c => tcgHTML(c, `Played by <b>${esc(c.owner)}</b>${c.target ? ` ${c.effect === 'fellowship' ? 'with' : 'against'} <b>${esc(c.target)}</b>` : ''}`)).join('')}</div>`
         : '';
+      fitCards($('boardCards'));
     } else { $('boardCards').innerHTML = ''; await refreshUsedHint(); }
   }
   async function refreshUsedHint() {
@@ -688,6 +700,7 @@
         }
         return tcgHTML(c, foot);
       }).join('') || '<div class="card" style="grid-column:1/-1"><div class="empty">Your hand is empty. The commissioner deals cards when the spirit moves him.</div></div>';
+      fitCards($('hand'));
     } catch (e) { $('hand').innerHTML = ''; msg('cardsMsg', e.message, 'err'); }
   }
   $('cardsLoad').addEventListener('click', () => { msg('cardsMsg', ''); loadCards(); });
@@ -699,7 +712,7 @@
     try {
       let text;
       if (play) {
-        const box = play.closest('.tcg');
+        const box = play.closest('.cardwrap');
         const r = await rpc('play_card', { p_owner: name, p_pin: pin, p_card_id: Number(play.dataset.id),
           p_tournament_id: Number(box.querySelector('.play-t').value), p_target: box.querySelector('.play-target')?.value || null });
         text = `${r.card} is in play for the ${r.tournament}${r.target ? ` against ${r.target}` : ''}. Nobody sees it until lock.`;
@@ -775,6 +788,7 @@
     dcRenderParams();
     $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: dcParams(),
       rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage, full_card: $('dcFull').checked });
+    fitCards($('dcPreview'));
   }
   const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
     p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked });
@@ -833,13 +847,14 @@
         <div><button class="btn ghost lib-retire" data-id="${l.id}" data-retired="${l.retired}" style="padding:7px 10px">${l.retired ? 'Restore' : 'Retire'}</button></div>
       </div>`)).join('')
       || '<div class="empty" style="grid-column:1/-1">The library is empty. Design a card below — it lands here and can be dealt every season after.</div>';
+    fitCards($('library'));
   }
   $('library').addEventListener('click', async e => {
     const deal = e.target.closest('.lib-deal'), edit = e.target.closest('.lib-edit'), ret = e.target.closest('.lib-retire');
     if (!deal && !edit && !ret) return;
     try {
       if (deal) {
-        const owner = deal.closest('.tcg').querySelector('.lib-owner').value;
+        const owner = deal.closest('.cardwrap').querySelector('.lib-owner').value;
         await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: Number(deal.dataset.id), p_owner: owner });
         msg('libMsg', `Dealt to ${owner}.`, 'ok'); await Promise.all([loadLibrary(), loadAdminCards()]);
       } else if (edit) {
