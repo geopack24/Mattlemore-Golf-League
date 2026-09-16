@@ -388,7 +388,7 @@
       </div>
       <div id="dcMsg"></div>
       <div class="grid2" style="margin-top:14px">
-        <div><div class="hint" style="margin:0 0 8px">Preview</div><div class="hand mini" id="dcPreview"></div></div>
+        <div><div class="hint" style="margin:0 0 8px">Preview of the form above (not a saved card)</div><div class="hand mini" id="dcPreview"></div></div>
         <div><div class="hint" style="margin:0 0 8px">All cards dealt</div>
           <div class="scroll"><table id="dcTable"><thead><tr><th>Owner</th><th>Card</th><th>Status</th><th>Week</th><th></th></tr></thead><tbody></tbody></table></div></div>
       </div>
@@ -466,7 +466,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-1';
+  const BUILD = '2026-09-16-2';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -805,12 +805,18 @@
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
+  // After saving an edit, stay on that card (form + preview intact) instead of wiping the form —
+  // a blank preview right after "Update" looked like the card had reverted.
+  function dcKeepEditing(id) {
+    dcLibId = id; if (dcImageData) { dcLibImage = dcImageData; dcImageData = null; $('dcImage').value = ''; }
+    $('dcTitle').textContent = `Editing “${$('dcName').value}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
+  }
   $('dcCancel').addEventListener('click', dcReset);
   $('dcSave').addEventListener('click', async () => {
     try {
       const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
       msg('dcMsg', `${dcLibId ? 'Updated' : 'Added'} “${$('dcName').value}” ${dcLibId ? 'in' : 'to'} the library.`, 'ok');
-      dcReset(); await loadLibrary();
+      dcKeepEditing(id); await loadLibrary();
     } catch (e) { msg('dcMsg', e.message, 'err'); }
   });
   ['dcName','dcKind','dcEffect','dcRules','dcFlavor'].forEach(id => $(id).addEventListener('input', dcSync));
@@ -838,7 +844,8 @@
         await rpc('admin_deal_card', { p_admin_pin: apin(), p_owner: owner, ...dcFields() });
       }
       msg('dcMsg', `Dealt “${name}” to ${owner}.`, 'ok');
-      dcReset(); await Promise.all([loadAdminCards(), loadLibrary()]);
+      if (dcLibId !== null) dcKeepEditing(dcLibId); else dcReset();
+      await Promise.all([loadAdminCards(), loadLibrary()]);
     } catch (e) { msg('dcMsg', e.message, 'err'); }
   });
   // ---- card library ----
