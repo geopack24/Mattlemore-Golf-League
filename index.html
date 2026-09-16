@@ -133,7 +133,7 @@
   .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
   .hand.mini{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
   .tcg{--parch:#e7dcbd;--parch-2:#d6c69c;--cgold:#b8934a;--cgold-2:#7a5c22;--inkc:#1a1208;
-    position:relative;display:grid;grid-template-rows:auto minmax(0,10fr) auto minmax(0,7fr);gap:8px;aspect-ratio:2/3;
+    position:relative;display:grid;grid-template-rows:auto minmax(0,10fr) auto minmax(0,7fr);gap:8px;aspect-ratio:2/3;min-height:0;
     background:radial-gradient(120% 90% at 50% 0%,#242424,#0e0e0e 70%);border-radius:14px;padding:14px;color:var(--inkc);
     box-shadow:0 0 0 1px #000,0 0 0 3px var(--cgold-2),0 0 0 4px #241c0c,0 22px 44px -18px rgba(0,0,0,.95);font-family:"Cormorant Garamond",Georgia,serif}
   .tcg::before{content:"";position:absolute;inset:6px;border:1px solid var(--cgold);border-radius:10px;pointer-events:none;opacity:.9;
