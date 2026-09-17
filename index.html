@@ -57,20 +57,25 @@
   .crest-img{width:220px;height:auto;filter:drop-shadow(0 0 26px rgba(255,255,255,.35)) drop-shadow(0 12px 22px rgba(0,0,0,.8))}
   .crest{flex:0 0 auto;width:150px;height:150px;filter:drop-shadow(0 0 22px rgba(255,255,255,.35)) drop-shadow(0 0 40px var(--gold-glow))}
   .title-block{text-align:center;min-width:0}
-  .title-block h1{margin:0;font-family:var(--display);font-weight:700;font-size:64px;letter-spacing:9px;text-transform:uppercase;line-height:1;
-    background:linear-gradient(180deg,#f6e3a3 0%,#d9b657 42%,#9a7828 56%,#f1d78c 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
-    filter:drop-shadow(0 3px 0 rgba(0,0,0,.9)) drop-shadow(0 10px 24px rgba(0,0,0,.8))}
-  .title-block .sub1{font-family:var(--display);font-weight:600;letter-spacing:13px;font-size:21px;color:#f2ead8;margin:10px 0 0 13px;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.9)}
-  .title-block .sub2{font-family:var(--display);letter-spacing:7px;font-size:12px;color:#d8cfbb;margin:12px 0 0 7px;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.9)}
+  /* beveled, extruded gold capitals: gradient face, bright top rim (::before), dark extrusion + shadow (::after) */
+  .title-block h1{position:relative;margin:0;font-family:var(--display);font-weight:900;font-size:68px;letter-spacing:8px;text-transform:uppercase;line-height:1;
+    background:linear-gradient(180deg,#fff4c8 0%,#efd27a 30%,#c9a03f 48%,#8f6a19 54%,#e9c766 72%,#fff0b8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(0 12px 22px rgba(0,0,0,.85))}
+  .title-block h1::before,.title-block h1::after{content:attr(data-text);position:absolute;inset:0;z-index:-1;background:none;-webkit-background-clip:initial;background-clip:initial}
+  .title-block h1::before{-webkit-text-fill-color:rgba(255,248,220,.75);color:rgba(255,248,220,.75);transform:translateY(-1.5px)}
+  .title-block h1::after{-webkit-text-fill-color:#3b2a08;color:#3b2a08;transform:translateY(3px);text-shadow:0 2px 0 #2a1d05,0 4px 0 #1a1203,0 6px 0 #0c0902}
+  .title-block .sub1{font-family:var(--display);font-weight:700;letter-spacing:14px;font-size:22px;color:#f4ecd9;margin:12px 0 0 14px;text-transform:uppercase;
+    text-shadow:0 1px 0 rgba(255,255,255,.35),0 -1px 0 rgba(0,0,0,.9),0 3px 8px rgba(0,0,0,.9)}
+  .title-block .sub2{font-family:var(--display);font-weight:600;letter-spacing:7.5px;font-size:12.5px;color:#d9cfb8;margin:13px 0 0 7px;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.9)}
   .banner-img{width:130px;height:auto;filter:drop-shadow(0 14px 24px rgba(0,0,0,.75));align-self:start;margin-top:-34px}
-  @media(max-width:860px){.title-block h1{font-size:46px;letter-spacing:6px}.crest-slot,.crest-img{width:150px}.banner-img{width:96px}}
+  @media(max-width:860px){.title-block h1{font-size:48px;letter-spacing:6px}.title-block h1::after{transform:translateY(2px);text-shadow:0 2px 0 #2a1d05,0 3px 0 #1a1203}.crest-slot,.crest-img{width:150px}.banner-img{width:96px}}
   @media(max-width:640px){.hero{grid-template-columns:1fr;min-height:0;padding:24px 16px 18px;gap:14px}.crest-slot{width:auto}.crest-img{width:130px}.banner-img{display:none}
     .title-block h1{font-size:34px;letter-spacing:4px}.title-block .sub1{letter-spacing:6px;font-size:15px;margin-left:6px}.title-block .sub2{letter-spacing:4px;margin-left:4px}}
   .navbar{position:relative;z-index:1;background:linear-gradient(180deg,rgba(60,62,58,.85),rgba(26,28,27,.9) 55%,rgba(12,14,13,.95)),url("assets/stone.jpg") center/640px repeat,#1a1c1b;
     border-top:2px solid #45473f;border-bottom:2px solid #030403;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -6px 14px rgba(0,0,0,.5),0 14px 34px rgba(0,0,0,.7)}
   nav{display:flex;gap:6px;justify-content:safe center;overflow-x:auto;scrollbar-width:none;max-width:1040px;margin:0 auto;padding:9px 12px}
   nav::-webkit-scrollbar{display:none}
-  nav button{font-family:var(--display);font-weight:600;font-size:13px;letter-spacing:1.8px;text-transform:uppercase;color:#e4dcc8;background:transparent;border:1px solid transparent;padding:12px 16px;border-radius:6px;white-space:nowrap;cursor:pointer;text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.8);transition:color .15s,background .15s}
+  nav button{font-family:var(--display);font-weight:700;font-size:13.5px;letter-spacing:2.2px;text-transform:uppercase;color:#e9e1cc;background:transparent;border:1px solid transparent;padding:12px 16px;border-radius:6px;white-space:nowrap;cursor:pointer;text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.8);transition:color .15s,background .15s}
   nav button:hover{color:#fff;background:rgba(255,255,255,.05)}
   nav button.active{color:#fff;background:linear-gradient(180deg,#1f6f5f,#113f36 60%,#0c2e28);border:1px solid var(--gold);
     box-shadow:inset 0 0 0 1px rgba(0,0,0,.7),inset 0 10px 18px rgba(0,0,0,.35),inset 0 -1px 0 rgba(255,255,255,.08),0 0 18px rgba(31,122,104,.55)}
@@ -80,7 +85,8 @@
     border:1px solid var(--gold-line);border-radius:10px;padding:22px 24px;margin-bottom:18px;
     box-shadow:0 26px 60px -28px rgba(0,0,0,.95),inset 0 1px 0 rgba(255,255,255,.07),inset 0 0 0 1px rgba(0,0,0,.7);position:relative}
   .card::before{content:"";position:absolute;inset:5px;border-radius:7px;pointer-events:none;border:1px solid rgba(212,175,55,.16)}
-  .card h2{margin:0 0 4px;font-family:var(--display);font-size:19px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--gold);position:relative;padding-left:34px;text-shadow:0 2px 4px rgba(0,0,0,.8)}
+  .card h2{margin:0 0 4px;font-family:var(--display);font-size:20px;font-weight:900;letter-spacing:4px;text-transform:uppercase;color:#e2c164;position:relative;padding-left:34px;
+    text-shadow:0 1px 0 rgba(255,244,200,.35),0 -1px 0 rgba(0,0,0,.9),0 3px 6px rgba(0,0,0,.85)}
   .card h2::before{content:"";position:absolute;left:0;top:50%;width:24px;height:24px;transform:translateY(-50%);background:var(--crown) center/contain no-repeat;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9))}
   .sub{color:var(--muted);font-size:15px;font-style:italic;margin:0 0 14px}
   .row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
@@ -286,7 +292,7 @@
       <svg class="crest" aria-hidden="true" style="display:none"><use href="#stag"/></svg>
     </div>
     <div class="title-block">
-      <h1 id="leagueName">Mattlemore</h1>
+      <h1 id="leagueName" data-text="Mattlemore">Mattlemore</h1>
       <div class="sub1">Golf League</div>
       <div class="sub2">Only one wears the white</div>
     </div>
@@ -568,7 +574,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-7';
+  const BUILD = '2026-09-17-8';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
