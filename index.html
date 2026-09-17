@@ -337,7 +337,7 @@
     <div class="card hidden" id="liveCard">
       <h2>Live leaderboard</h2>
       <p class="sub" id="liveSub"></p>
-      <div class="scroll"><table id="liveTable"><thead><tr><th>Owner</th><th>Golfer</th><th>Pos</th><th class="num">Score</th><th>Thru</th><th>Penalty</th><th class="num">Adjusted</th><th class="num">Projected $</th></tr></thead><tbody></tbody></table></div>
+      <div class="scroll"><table id="liveTable"><thead><tr><th>Owner</th><th>Golfer</th><th>Pos</th><th class="num">Score</th><th>Thru</th><th>Cards</th><th class="num">Adjusted</th><th class="num">Projected $</th></tr></thead><tbody></tbody></table></div>
     </div>
 
     <div class="grid2">
@@ -590,7 +590,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-21';
+  const BUILD = '2026-09-17-22';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -637,8 +637,8 @@
     fellowship: { label: 'Fellowship — partner bonus; both bust if either misses the cut', target: 'Partner',
                   params: [{ k: 'amount', l: 'Bonus each ($)', t: 'number' }],
                   sum: p => `Partner up: +${fmt$(p.amount ?? 500000)} each — $0 for both if either misses the cut` },
-    strokes:    { label: "Stroke penalty — victim's golfer takes N strokes", target: 'Victim', params: [{ k: 'n', l: 'Strokes', t: 'number' }],
-                  sum: p => `−${p.n ?? 1} strokes on the victim's golfer, shown on the leaderboard immediately` },
+    strokes:    { label: "Stroke adjustment — add (+) or remove (−) strokes from a golfer", target: 'Target', params: [{ k: 'n', l: 'Strokes (+ adds, − removes)', t: 'number' }],
+                  sum: p => `${fmtStrokes(p.n ?? 1)} on the target's golfer, applied automatically on the live leaderboard` },
     shield:     { label: 'Shield', params: [], sum: () => "Rivals' cards cannot touch me this week" },
     mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
     custom:     { label: 'Custom (commissioner rules on it at results time)', params: [], sum: () => 'Commissioner rules on it when entering results' },
@@ -774,7 +774,7 @@
     }
     const [board, penalties] = await Promise.all([rpc('tournament_board', { p_tournament_id: id }), rpc('tournament_penalties', { p_tournament_id: id }).catch(() => [])]);
     const pen = Object.fromEntries(penalties.map(p => [p.owner, p]));   // stroke penalties show at once, lock or not
-    const penTag = o => pen[o] ? ` <span class="tag lock" title="${esc(pen[o].cards)}">−${Number(pen[o].strokes)} strokes</span>` : '';
+    const penTag = o => pen[o] ? ` <span class="tag ${strokesClass(pen[o].strokes)}" title="${esc(pen[o].cards)}">${fmtStrokes(pen[o].strokes)}</span>` : '';
     const picked = board.filter(b => b.has_picked).length;
     const locked = t.locked || new Date(t.lock_at) <= new Date();
     $('boardStatus').innerHTML = locked
@@ -809,6 +809,8 @@
   }
   // ---- live leaderboard (ESPN feed via live_board; stroke penalties applied, finish re-ranked) ----
   const fmtPar = s => s == null ? '—' : s === 0 ? 'E' : (s > 0 ? '+' + s : String(s));
+  const fmtStrokes = n => { n = Number(n) || 0; return `${n < 0 ? '−' : '+'}${Math.abs(n)} stroke${Math.abs(n) === 1 ? '' : 's'}`; };
+  const strokesClass = n => Number(n) < 0 ? 'open' : 'lock';    // green when it helps, amber when it hurts
   async function loadLive(id) {
     const rows = await rpc('live_board', { p_tournament_id: id }).catch(() => []);
     const card = $('liveCard'); if (!rows.length) { card.classList.add('hidden'); return; }
@@ -816,12 +818,12 @@
     const r0 = rows[0], st = ({ STATUS_IN_PROGRESS: 'in progress', STATUS_FINAL: 'final', STATUS_SCHEDULED: 'not started yet', STATUS_SUSPENDED: 'suspended', STATUS_DELAYED: 'delayed' })[r0.event_status]
       || String(r0.event_status || '').replace('STATUS_', '').toLowerCase();
     $('liveSub').textContent = `${r0.event_name} · ${st} · ESPN scores as of ${fmtWhen(r0.fetched_at)}, refreshed every 10 minutes. ` +
-      `Stroke penalties are added to the victim's golfer and that finish is re-ranked against the whole field; projected money uses the Tour payout table until the event is final, then real earnings.`;
+      `Stroke adjustments from cards are applied to the target's golfer (+ adds strokes, − takes them off) and that score is re-ranked against the whole field; projected money uses the Tour payout table until the event is final, then real earnings.`;
     $('liveTable').querySelector('tbody').innerHTML = rows.sort((a, b) => (a.adj_pos ?? 999) - (b.adj_pos ?? 999) || a.owner.localeCompare(b.owner)).map(r => `<tr>
       <td><b>${esc(r.owner)}</b></td>
       <td>${esc(r.golfer)}${r.matched && r.matched !== r.golfer ? `<small class="note" style="color:var(--muted)">${esc(r.matched)}</small>` : ''}${r.state === 'not in field' ? '<small class="note" style="color:var(--amber)">not in this field</small>' : ''}</td>
       <td>${esc(r.pos || '—')}</td><td class="num">${fmtPar(r.score)}</td><td>${esc(r.thru || '')}</td>
-      <td>${Number(r.penalty) ? `<span class="tag lock">−${Number(r.penalty)} strokes</span>` : ''}</td>
+      <td>${Number(r.penalty) ? `<span class="tag ${strokesClass(r.penalty)}">${fmtStrokes(r.penalty)}</span>` : ''}</td>
       <td class="num">${Number(r.penalty) ? `<b>${fmtPar(r.adj_score)}</b> <span class="muted">${r.adj_pos ? '(' + (r.adj_ties > 1 ? 'T' : '') + r.adj_pos + ')' : ''}</span>` : '—'}</td>
       <td class="num">${fmt$(r.projected)}</td></tr>`).join('');
   }
@@ -1195,7 +1197,7 @@
     const [board, penalties] = await Promise.all([rpc('tournament_board', { p_tournament_id: id }), rpc('tournament_penalties', { p_tournament_id: id }).catch(() => [])]);
     const pen = Object.fromEntries(penalties.map(p => [p.owner, p]));
     $('adminResults').querySelector('tbody').innerHTML = board.map(b => `<tr>
-      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}${pen[b.owner] ? `<small class="note" style="color:var(--amber)">−${Number(pen[b.owner].strokes)} strokes (${esc(pen[b.owner].cards)}) — applied automatically; "Fill from live scores" uses the adjusted finish</small>` : ''}</td>
+      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}${pen[b.owner] ? `<small class="note" style="color:var(--amber)">${fmtStrokes(pen[b.owner].strokes)} (${esc(pen[b.owner].cards)}) — applied automatically; "Fill from live scores" uses the adjusted finish</small>` : ''}</td>
       <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:150px">` : '—'}</td>
       <td>${b.has_picked ? `<input type="number" step="1" class="adj" data-owner="${esc(b.owner)}" value="${Number(b.adjust) || 0}" style="max-width:130px">` : ''}</td>
       <td>${b.has_picked ? `<input type="text" class="adj-note" data-owner="${esc(b.owner)}" value="${esc(b.adjust_note || '')}" placeholder="e.g. Ring of the Covenant" style="min-width:160px">` : ''}</td>

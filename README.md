@@ -68,8 +68,8 @@ enter your PIN and a golfer, click **Lock it in**. The form shows the golfers yo
 You can change your pick until lock time. **My Picks** shows your full season.
 
 **During the tournament:** once picks lock, **This Week** shows a live leaderboard of everyone's golfer
-(position, score, holes played, projected money) pulled from ESPN every 10 minutes. Stroke-penalty cards are
-applied here automatically: the victim's golfer shows a "−N strokes" badge, an adjusted score, and the finish
+(position, score, holes played, projected money) pulled from ESPN every 10 minutes. Stroke-adjustment cards are
+applied here automatically: the target golfer shows a "+N strokes" (or "−N strokes") badge, an adjusted score, and the finish
 that score would earn against the real field.
 
 **Commissioner (after each tournament):** when the event goes final the winnings fill in by themselves from the
@@ -91,7 +91,7 @@ scoring always uses the winnings you enter. Fix any of them — or add/remove a 
 ## Cards (the commissioner's enchantments)
 
 Commissioner tab → **Design a card**: name the card, choose its **effect** (multiply my points,
-bonus/penalty, duel, steal %, swap, shield, mulligan, stroke penalty, or custom), add the rules and flavor text and the artwork,
+bonus/penalty, duel, steal %, swap, shield, mulligan, stroke adjustment (± strokes), or custom), add the rules and flavor text and the artwork,
 then **Deal card** to an owner. New designs are saved to the **Card library** — the league's permanent pool — so
 any card can be dealt again to anyone, this season or next. From the library you can also edit a design or retire it.
 Only that owner can see the card, under **My Cards** (name + PIN). They play it on an upcoming week — and pick an

@@ -181,6 +181,11 @@ language sql immutable as $$
   select n || jsonb_build_object(k, case when n ? k then (n->>k) || ' · ' || s else s end);
 $$;
 
+-- "+3 strokes" / "−1 stroke" for stroke-adjustment cards (positive hurts, negative helps).
+create or replace function _strokes_txt(x numeric) returns text language sql immutable as $$
+  select case when x < 0 then '−' else '+' end || trim(to_char(abs(x), 'FM9999990.##')) || case when abs(x) = 1 then ' stroke' else ' strokes' end;
+$$;
+
 create or replace function scored_points(p_tournament_id int)
 returns table (o_id int, raw numeric, base_pts numeric, pts numeric, note text)
 language plpgsql stable security definer set search_path = public, extensions as $$
@@ -297,10 +302,10 @@ begin
           n := _note(n, a,  c.name || ': ' || _oname(c.target_owner_id) || ' took ' || x || '%');
         end if;
       when 'strokes' then
-        -- no automatic money math: the commissioner scores the golfer's adjusted finish when entering results
+        -- signed: +N adds strokes (hurts), −N removes them (helps). Applied to the live score by live_board().
         x := coalesce((c.params->>'n')::numeric, 1);
-        n := _note(n, tg, c.name || ': −' || x || ' strokes on your golfer — applied automatically on the live leaderboard');
-        n := _note(n, a,  c.name || ': −' || x || ' strokes on ' || _oname(c.target_owner_id) || '''s golfer');
+        n := _note(n, tg, c.name || ': ' || _strokes_txt(x) || ' on your golfer — applied automatically on the live leaderboard');
+        n := _note(n, a,  c.name || ': ' || _strokes_txt(x) || ' on ' || _oname(c.target_owner_id) || '''s golfer');
       when 'shield'   then n := _note(n, a, c.name || ': shielded');
       when 'mulligan' then n := _note(n, a, c.name || ': mulligan');
       else                 n := _note(n, a, c.name || ' (commissioner applies)');
@@ -948,7 +953,7 @@ begin
   if t.id is null then return null; end if;
   if now() >= t.lock_at then
     select string_agg('• **' || o.name || '** — ' || coalesce(p.golfer, '_no pick_')
-                      || coalesce(' ⚠️ −' || tp.strokes || ' strokes (' || tp.cards || ')', ''), E'\n' order by o.name), count(p.id)
+                      || coalesce(' ' || case when tp.strokes < 0 then '✨ ' else '⚠️ ' end || _strokes_txt(tp.strokes) || ' (' || tp.cards || ')', ''), E'\n' order by o.name), count(p.id)
       into picks_txt, n
       from owners o left join picks p on p.owner_id = o.id and p.tournament_id = t.id
            left join tournament_penalties(t.id) tp on tp.owner = o.name
@@ -987,7 +992,7 @@ language sql stable security definer set search_path = public, extensions as $$
            when 'mulligan'   then 'May reuse a golfer this week'
            when 'fellowship' then 'Partners get +$' || coalesce(c.params->>'amount', '500000') || ' each; $0 for both if either misses the cut'
            when 'curse'      then coalesce('Victim must pick ' || nullif(c.params->>'golfer', ''), 'Curse') || coalesce(' · ' || nullif(c.params->>'pct', '') || '% to their points', '')
-           when 'strokes'    then '−' || coalesce(c.params->>'n', '1') || ' strokes on the victim''s golfer'
+           when 'strokes'    then _strokes_txt(coalesce((c.params->>'n')::numeric, 1)) || ' on the target''s golfer'
            else 'Commissioner rules on it at results time' end,
          c.tier
     from cards c join owners o on o.id = c.owner_id join tournaments t on t.id = c.tournament_id
