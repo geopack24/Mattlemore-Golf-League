@@ -9,7 +9,7 @@ type Card = {
   owner: string; target: string | null; name: string; kind: string; effect: string;
   rules: string | null; flavor: string | null; image: string | null; summary: string | null; tier: string | null;
 };
-const TIER_COLOR: Record<string, number> = { common: 0x8f8f8f, rare: 0x2e5a99, legendary: 0xc1641b, mythic: 0x8b5cf6 };
+const TIER_COLOR: Record<string, number> = { common: 0x8f8f8f, rare: 0x2e5a99, legendary: 0x8b5cf6, mythic: 0xe0691c };   // grey, blue, purple, orange
 
 Deno.serve(async (req) => {
   if (req.headers.get("x-announce-key") !== Deno.env.get("ANNOUNCE_KEY")) {

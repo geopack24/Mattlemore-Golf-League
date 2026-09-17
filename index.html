@@ -170,8 +170,8 @@
   .tcg-foot .fx{font-style:italic;color:var(--leaf);font-size:13px;margin-bottom:6px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .tag.tier-common{background:#3a3a3a;color:#e6e6e6;border-color:#8a8a8a}
   .tag.tier-rare{background:#14213d;color:#dbe6f7;border-color:#7fa0d0}
-  .tag.tier-legendary{background:#4a2306;color:#ffe08a;border-color:#f3c968}
-  .tag.tier-mythic{background:linear-gradient(120deg,#5a2fa0,#2a1650);color:#ffe9a8;border-color:#c9a4ff;box-shadow:0 0 10px -2px rgba(170,110,255,.7)}
+  .tag.tier-legendary{background:linear-gradient(120deg,#5a2fa0,#2a1650);color:#ffe9a8;border-color:#c9a4ff;box-shadow:0 0 10px -2px rgba(170,110,255,.7)}
+  .tag.tier-mythic{background:linear-gradient(120deg,#c2571a,#5a2306);color:#ffe08a;border-color:#ffb056;box-shadow:0 0 12px -2px rgba(255,140,40,.8)}
   .libbar{align-items:flex-end;margin-bottom:8px}
   .libbar .f.sm{flex:0 1 160px}
   .tcg-foot .fx:last-child{margin-bottom:0}
@@ -503,7 +503,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-16-7';
+  const BUILD = '2026-09-17-1';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
