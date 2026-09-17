@@ -420,7 +420,8 @@
   <section id="view-stag" class="hidden">
     <div class="card">
       <div class="stag-hero">
-        <svg class="crest" aria-hidden="true"><use href="#stag"/></svg>
+        <img class="crest-img" src="assets/crest.png" alt="" style="width:170px" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <svg class="crest" aria-hidden="true" style="display:none"><use href="#stag"/></svg>
         <div>
           <h2>The White Stag Club</h2>
           <p>Every season the herd runs, and one is left standing in the clearing at the end. <em>These are the champions of the Mattlemore Golf League</em> — their names are kept here, in white, for as long as the league draws breath.</p>
@@ -583,7 +584,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-13';
+  const BUILD = '2026-09-17-14';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
