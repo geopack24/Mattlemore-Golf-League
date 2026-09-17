@@ -584,7 +584,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-14';
+  const BUILD = '2026-09-17-15';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -934,7 +934,7 @@
       <div class="champ ${i === 0 ? 'latest' : ''}">
         <div class="portrait">${c.image ? `<img src="${esc(c.image)}" alt="${esc(c.owner)}">` : '<svg class="crest" aria-hidden="true"><use href="#stag"/></svg>'}</div>
         <div class="yr">${c.season}</div>
-        <div class="who">${esc(c.owner)}</div>
+        <div class="who">Sir ${esc(c.owner)}</div>
         <div class="note">${esc(c.note || '')}</div>
         ${c.points != null ? `<div class="pts">${fmt$(c.points)}</div>` : ''}
       </div>`).join('')
