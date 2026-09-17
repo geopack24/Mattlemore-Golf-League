@@ -58,19 +58,19 @@
   .crest{flex:0 0 auto;width:150px;height:150px;filter:drop-shadow(0 0 22px rgba(255,255,255,.35)) drop-shadow(0 0 40px var(--gold-glow))}
   .title-block{text-align:center;min-width:0}
   /* beveled, extruded gold capitals: gradient face, bright top rim (::before), dark extrusion + shadow (::after) */
-  .title-block h1{position:relative;margin:0;font-family:var(--display);font-weight:900;font-size:68px;letter-spacing:8px;text-transform:uppercase;line-height:1;
+  .title-block h1{position:relative;margin:0;font-family:var(--display);font-weight:900;font-size:clamp(30px,6.4vw,68px);letter-spacing:.12em;text-transform:uppercase;line-height:1;white-space:nowrap;
     background:linear-gradient(180deg,#fff4c8 0%,#efd27a 30%,#c9a03f 48%,#8f6a19 54%,#e9c766 72%,#fff0b8 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
     filter:drop-shadow(0 12px 22px rgba(0,0,0,.85))}
   .title-block h1::before,.title-block h1::after{content:attr(data-text);position:absolute;inset:0;z-index:-1;background:none;-webkit-background-clip:initial;background-clip:initial}
   .title-block h1::before{-webkit-text-fill-color:rgba(255,248,220,.75);color:rgba(255,248,220,.75);transform:translateY(-1.5px)}
   .title-block h1::after{-webkit-text-fill-color:#3b2a08;color:#3b2a08;transform:translateY(3px);text-shadow:0 2px 0 #2a1d05,0 4px 0 #1a1203,0 6px 0 #0c0902}
-  .title-block .sub1{font-family:var(--display);font-weight:700;letter-spacing:14px;font-size:22px;color:#f4ecd9;margin:12px 0 0 14px;text-transform:uppercase;
+  .title-block .sub1{font-family:var(--display);font-weight:700;letter-spacing:.62em;font-size:clamp(13px,2.1vw,22px);color:#f4ecd9;margin:12px 0 0 .62em;text-transform:uppercase;white-space:nowrap;
     text-shadow:0 1px 0 rgba(255,255,255,.35),0 -1px 0 rgba(0,0,0,.9),0 3px 8px rgba(0,0,0,.9)}
-  .title-block .sub2{font-family:var(--display);font-weight:600;letter-spacing:7.5px;font-size:12.5px;color:#d9cfb8;margin:13px 0 0 7px;text-transform:uppercase;text-shadow:0 2px 6px rgba(0,0,0,.9)}
+  .title-block .sub2{font-family:var(--display);font-weight:600;letter-spacing:.6em;font-size:clamp(9px,1.2vw,12.5px);color:#d9cfb8;margin:13px 0 0 .6em;text-transform:uppercase;white-space:nowrap;text-shadow:0 2px 6px rgba(0,0,0,.9)}
   .banner-img{width:130px;height:auto;filter:drop-shadow(0 14px 24px rgba(0,0,0,.75));align-self:start;margin-top:-34px}
-  @media(max-width:860px){.title-block h1{font-size:48px;letter-spacing:6px}.title-block h1::after{transform:translateY(2px);text-shadow:0 2px 0 #2a1d05,0 3px 0 #1a1203}.crest-slot,.crest-img{width:150px}.banner-img{width:96px}}
-  @media(max-width:640px){.hero{grid-template-columns:1fr;min-height:0;padding:24px 16px 18px;gap:14px}.crest-slot{width:auto}.crest-img{width:130px}.banner-img{display:none}
-    .title-block h1{font-size:34px;letter-spacing:4px}.title-block .sub1{letter-spacing:6px;font-size:15px;margin-left:6px}.title-block .sub2{letter-spacing:4px;margin-left:4px}}
+  @media(max-width:1000px){.hero{grid-template-columns:auto 1fr;gap:20px}.banner-img{display:none}.title-block h1::after{transform:translateY(2px);text-shadow:0 2px 0 #2a1d05,0 3px 0 #1a1203}.crest-slot,.crest-img{width:170px}}
+  @media(max-width:640px){.hero{grid-template-columns:1fr;min-height:0;padding:24px 16px 18px;gap:14px}.crest-slot{width:auto}.crest-img{width:140px}
+    .title-block h1{font-size:clamp(26px,8.6vw,40px)}.title-block .sub1{font-size:clamp(12px,3vw,16px)}.title-block .sub2{font-size:clamp(8.5px,1.9vw,11px)}}
   .navbar{position:relative;z-index:1;background:linear-gradient(180deg,rgba(60,62,58,.85),rgba(26,28,27,.9) 55%,rgba(12,14,13,.95)),url("assets/stone.jpg") center/640px repeat,#1a1c1b;
     border-top:2px solid #45473f;border-bottom:2px solid #030403;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -6px 14px rgba(0,0,0,.5),0 14px 34px rgba(0,0,0,.7)}
   nav{display:flex;gap:6px;justify-content:safe center;overflow-x:auto;scrollbar-width:none;max-width:1040px;margin:0 auto;padding:9px 12px}
@@ -574,7 +574,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-9';
+  const BUILD = '2026-09-17-10';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
