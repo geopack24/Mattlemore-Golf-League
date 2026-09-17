@@ -59,8 +59,10 @@
   .title-block{text-align:center;min-width:0}
   /* beveled, extruded gold capitals: gradient face, bright top rim (::before), dark extrusion + shadow (::after) */
   .title-block h1{position:relative;margin:0;font-family:var(--display);font-weight:900;font-size:clamp(30px,6.4vw,68px);letter-spacing:.12em;text-transform:uppercase;line-height:1;white-space:nowrap;
-    background:linear-gradient(180deg,#fffae4 0%,#fbe7a6 28%,#f0cf6c 46%,#d6ad45 52%,#f5d97e 62%,#fff3c6 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
-    filter:drop-shadow(0 0 14px rgba(255,214,120,.45)) drop-shadow(0 10px 20px rgba(0,0,0,.85))}
+    background:linear-gradient(180deg,#fffae4 0%,#fbe7a6 28%,#f0cf6c 46%,#d6ad45 52%,#f5d97e 62%,#fff3c6 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+  /* NOTE: no `filter` on the h1 itself — Chromium drops the background-clip:text fill when the same element is filtered.
+     The glow/shadow live on .title-block instead. */
+  .title-block{filter:drop-shadow(0 0 14px rgba(255,214,120,.35)) drop-shadow(0 10px 20px rgba(0,0,0,.8))}
   .title-block h1::before,.title-block h1::after{content:attr(data-text);position:absolute;inset:0;z-index:-1;background:none;-webkit-background-clip:initial;background-clip:initial}
   .title-block h1::before{-webkit-text-fill-color:rgba(255,252,235,.9);color:rgba(255,252,235,.9);transform:translateY(-1.5px)}
   .title-block h1::after{-webkit-text-fill-color:#6b4d12;color:#6b4d12;transform:translateY(3px);text-shadow:0 2px 0 #4a3409,0 4px 0 #2a1d05,0 7px 12px rgba(0,0,0,.9)}
@@ -574,7 +576,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-11';
+  const BUILD = '2026-09-17-12';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
