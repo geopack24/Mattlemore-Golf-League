@@ -203,13 +203,22 @@
   .mc .mc-art{left:7.8%;top:12.1%;width:85.5%;height:44.7%;object-fit:cover;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%)}
   .mc .mc-art .crest{width:50%;height:50%;opacity:.85}
   .mc .mc-frame{inset:0;width:100%;height:100%;pointer-events:none;filter:saturate(.78) brightness(.9) contrast(1.06)}   /* tone the painted frames down to match the gritty site */
-  /* lettering: solid white on Common/Rare, solid gold on Legendary/Mythic, hard dark edge so it reads on the textured bars */
-  .mc .mc-title,.mc .mc-type{display:flex;align-items:center;padding:0 2cqw;font-family:Marcellus,Cinzel,serif;white-space:nowrap;overflow:hidden;line-height:1;font-weight:700;
-    color:var(--tf);-webkit-text-stroke:.16cqw rgba(0,0,0,.9);paint-order:stroke fill;
-    text-shadow:0 .3cqw .3cqw rgba(0,0,0,.95),0 0 1.2cqw rgba(0,0,0,.85),0 0 .3cqw rgba(0,0,0,1)}
-  .mc .mc-title{left:10.2%;top:4.9%;width:64%;height:6.5%;font-size:6.6cqw;letter-spacing:.08cqw;padding:0 3cqw 0 2cqw}
-  .mc .mc-type{left:13%;top:54.6%;width:61.5%;height:4.4%;text-transform:uppercase;font-size:4.2cqw;letter-spacing:.3cqw;padding:0 3cqw 0 2cqw}
-  .mc.tier-legendary,.mc.tier-mythic{--tf:#f6c545}
+  /* lettering: the same beveled, extruded metal capitals as the site title (Cinzel; gradient face, bright top rim via ::before,
+     dark extrusion + shadow via ::after). Silver on Common/Rare, gold on Legendary/Mythic. Both pseudo-elements repeat the text
+     from data-text. No filter may sit on these elements themselves (Chromium drops background-clip:text fills when filtered). */
+  .mc{--face:linear-gradient(180deg,#ffffff 0%,#eef1f5 28%,#c9d0d9 46%,#9ea8b5 52%,#dfe4ea 62%,#ffffff 100%);--rim:rgba(255,255,255,.92);--ext:#2f353d;--ext2:#171b20}
+  .mc.tier-legendary,.mc.tier-mythic{--face:linear-gradient(180deg,#fffae4 0%,#fbe7a6 28%,#f0cf6c 46%,#d6ad45 52%,#f5d97e 62%,#fff3c6 100%);--rim:rgba(255,252,235,.92);--ext:#6b4d12;--ext2:#3a2807}
+  .mc .mc-title,.mc .mc-type{display:flex;align-items:center;font-family:var(--display);font-weight:900;white-space:nowrap;line-height:1;z-index:1}
+  /* the gradient face lives on an inner span so it paints ABOVE the rim/extrusion pseudo-elements (an element's own
+     background paints below its negative-z children, which is why the face went dark on the first attempt) */
+  .mc .mc-title>span,.mc .mc-type>span{position:relative;z-index:1;background:var(--face);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+  .mc .mc-title::before,.mc .mc-title::after,.mc .mc-type::before,.mc .mc-type::after{content:attr(data-text);position:absolute;inset:0;padding:inherit;display:flex;align-items:center;
+    z-index:0;letter-spacing:inherit;white-space:nowrap}
+  .mc .mc-title::before,.mc .mc-type::before{-webkit-text-fill-color:var(--rim);color:var(--rim);transform:translateY(-.18cqw)}
+  .mc .mc-title::after,.mc .mc-type::after{-webkit-text-fill-color:var(--ext);color:var(--ext);transform:translateY(.42cqw);
+    text-shadow:0 .3cqw 0 var(--ext2),0 .55cqw 0 #000,0 .9cqw 1.6cqw rgba(0,0,0,.95),0 0 1.4cqw rgba(0,0,0,.8)}
+  .mc .mc-title{left:10.2%;top:4.9%;width:64%;height:6.5%;font-size:6.2cqw;letter-spacing:.12cqw;padding:0 3cqw 0 2cqw}
+  .mc .mc-type{left:13%;top:54.6%;width:61.5%;height:4.4%;text-transform:uppercase;font-size:3.9cqw;letter-spacing:.4cqw;padding:0 3cqw 0 2cqw}
   .mc .mc-text{left:11.2%;top:62.4%;width:79%;height:25.6%;overflow:hidden;color:var(--ink);font-size:4.6cqw;line-height:1.22;font-weight:500;padding:.4cqw .8cqw;white-space:normal;overflow-wrap:anywhere}
   .mc .mc-text p{margin:0}
   .mc .mc-div{display:flex;align-items:center;gap:1.2cqw;margin:1.6cqw 0;color:var(--ts)}
@@ -593,7 +602,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-23';
+  const BUILD = '2026-09-17-24';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -657,8 +666,8 @@
     return `<div class="cardwrap ${top ? 'tilt' : ''}"><div class="mc tier-${tier} ${c.status || ''}" data-tilt="${top ? 1 : 0}" style="--frame:url('frames/${tier}.png?v=${BUILD}')">
       ${c.image ? `<img class="mc-art" src="${esc(c.image)}" alt="">` : '<div class="mc-art"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg></div>'}
       <img class="mc-frame" src="frames/${tier}.png?v=${BUILD}" alt="">
-      <div class="mc-title">${esc(c.name)}</div>
-      <div class="mc-type">${esc(c.kind || 'Enchantment')}</div>
+      <div class="mc-title" data-text="${esc(c.name)}"><span>${esc(c.name)}</span></div>
+      <div class="mc-type" data-text="${esc(c.kind || 'Enchantment')}"><span>${esc(c.kind || 'Enchantment')}</span></div>
       <div class="mc-text">${c.rules ? `<p>${esc(c.rules)}</p>` : ''}${c.rules && c.flavor ? '<div class="mc-div"><span>✦</span></div>' : ''}${c.flavor ? `<p class="fl">${esc(c.flavor)}</p>` : ''}</div>
       <div class="mc-coll l">MGL · ${num} · ${TIERS[tier]}</div><div class="mc-coll r">The Mattlemore Golf League</div>
       ${top ? '<div class="holo"></div>' : ''}
@@ -725,6 +734,7 @@
     }));
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
+  window.__mgl = { tcgHTML, fitCards };                  // exposed for design previews in the browser console
   let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
   const views = ['board','standings','mine','cards','season','stag','admin'];
