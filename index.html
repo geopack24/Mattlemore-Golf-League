@@ -260,7 +260,7 @@
   .tcg-foot .f{flex:1 1 140px}
   .tcg.full{display:block;aspect-ratio:auto;padding:0;background:none;box-shadow:0 22px 44px -18px rgba(0,0,0,.95)}
   .tcg.full::before,.tcg.full::after{display:none}
-  .tcg.full > img{display:block;width:100%;border-radius:14px}
+  .tcg.full > img,.tcg.full > video{display:block;width:100%;border-radius:14px}
   .tcg.played{filter:saturate(.85)}
   .tcg.retired{opacity:.55;filter:grayscale(.7)}
   .lib-meta{font-size:12px;color:var(--muted);margin-bottom:8px;font-style:italic}
@@ -505,7 +505,7 @@
       </div>
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Flavor text</label><input id="dcFlavor" placeholder="“Dying is easy, young man. Golf is harder.”"></div>
-        <div class="f"><label>Artwork</label><input id="dcImage" type="file" accept="image/*"></div>
+        <div class="f"><label>Artwork (image, or MP4/WebM for animated art)</label><input id="dcImage" type="file" accept="image/*,video/mp4,video/webm"></div>
       </div>
       <div class="row" style="margin-top:10px">
         <label class="chk"><input type="checkbox" id="dcFull"> the image is the whole card (title, type and text already on it) — show it as-is</label>
@@ -606,7 +606,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-26';
+  const BUILD = '2026-09-17-27';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -661,14 +661,19 @@
   };
   const TIERS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
   const tierTag = t => `<span class="tag tier-${TIERS[t] ? t : 'common'}">${TIERS[t] || 'Common'}</span>`;
+  // Card art may be a still (JPEG/PNG data URL) or animated (MP4/WebM data URL): video plays muted on a loop, no controls.
+  const isVideo = src => /^data:video\//.test(src || '') || /\.(mp4|webm)(\?|$)/i.test(src || '');
+  const artEl = (src, cls, alt) => isVideo(src)
+    ? `<video class="${cls}" src="${esc(src)}" autoplay muted loop playsinline disablepictureinpicture></video>`
+    : `<img class="${cls}" src="${esc(src)}" alt="${esc(alt || '')}">`;
   function tcgHTML(c, foot, bare = false) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
     const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">${tierTag(c.tier)} ⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
-    if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}"><img src="${esc(c.image)}" alt="${esc(c.name)}"></div>${footHTML}</div>`;
+    if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}">${artEl(c.image, '', c.name)}</div>${footHTML}</div>`;
     const tier = TIERS[c.tier] ? c.tier : 'common', top = tier === 'legendary' || tier === 'mythic';
     const num = String(c.library_id || c.id || 0).padStart(3, '0');
     return `<div class="cardwrap ${top ? 'tilt' : ''}"><div class="mc tier-${tier} ${c.status || ''}" data-tilt="${top ? 1 : 0}" style="--frame:url('frames/${tier}.png?v=${BUILD}')">
-      ${c.image ? `<img class="mc-art" src="${esc(c.image)}" alt="">` : '<div class="mc-art"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg></div>'}
+      ${c.image ? artEl(c.image, 'mc-art', '') : '<div class="mc-art"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg></div>'}
       <img class="mc-frame" src="frames/${tier}.png?v=${BUILD}" alt="">
       <div class="mc-title" data-text="${esc(c.name)}"><span>${esc(c.name)}</span></div>
       <div class="mc-type" data-text="${esc(c.kind || 'Enchantment')}"><span>${esc(c.kind || 'Enchantment')}</span></div>
@@ -1103,6 +1108,19 @@
   $('dcFull').addEventListener('change', dcSync);
   $('dcImage').addEventListener('change', () => {
     const f = $('dcImage').files[0]; if (!f) { dcImageData = null; dcSync(); return; }
+    if (f.type.startsWith('video/')) {                     // animated art: stored as-is (no re-encoding in the browser), so keep files small
+      const mb = f.size / 1048576;
+      if (mb > 8) { msg('dcMsg', `That video is ${mb.toFixed(1)} MB. Keep card videos under 8 MB (ideally 2–3 MB: 720px wide, 6–10 seconds, no audio).`, 'err'); $('dcImage').value = ''; return; }
+      const rd = new FileReader();
+      rd.onload = () => {
+        dcImageData = rd.result;
+        const v = document.createElement('video'); v.muted = true; v.preload = 'metadata';
+        v.onloadedmetadata = () => { if (v.videoHeight / v.videoWidth > 1.25) $('dcFull').checked = true; dcSync(); };
+        v.src = dcImageData; dcSync();
+        msg('dcMsg', `Animated art loaded (${mb.toFixed(1)} MB). It plays muted on a loop wherever the card appears.`, 'ok');
+      };
+      rd.readAsDataURL(f); return;
+    }
     const img = new Image(), url = URL.createObjectURL(f);
     img.onload = () => {
       const full = img.height / img.width > 1.25;        // printed cards are portrait; plain artwork is square-ish

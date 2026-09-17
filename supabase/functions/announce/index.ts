@@ -37,10 +37,17 @@ Deno.serve(async (req) => {
       const [meta, b64] = c.image.split(",", 2);
       const mime = /data:([^;]+)/.exec(meta)?.[1] ?? "image/jpeg";
       const bytes = Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0));
-      const fname = `card${i}.${mime.includes("png") ? "png" : "jpg"}`;
+      const video = mime.startsWith("video/");
+      const fname = `card${i}.${video ? (mime.includes("webm") ? "webm" : "mp4") : mime.includes("png") ? "png" : "jpg"}`;
       form.append(`files[${i}]`, new Blob([bytes], { type: mime }), fname);
-      embed.image = { url: `attachment://${fname}` };
-      if (c.summary) embed.footer = { text: c.summary };
+      if (video) {
+        // Discord embeds can't hold a video; the attachment itself plays inline under the message
+        embed.description = [c.kind, c.rules, c.flavor ? `*${c.flavor}*` : null, c.summary ? `⚙ ${c.summary}` : null, `🎞 animated art attached below`]
+          .filter(Boolean).join("\n");
+      } else {
+        embed.image = { url: `attachment://${fname}` };
+        if (c.summary) embed.footer = { text: c.summary };
+      }
     } else {
       embed.description = [c.kind, c.rules, c.flavor ? `*${c.flavor}*` : null, c.summary ? `⚙ ${c.summary}` : null]
         .filter(Boolean).join("\n");
