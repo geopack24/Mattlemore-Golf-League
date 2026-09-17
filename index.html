@@ -147,15 +147,21 @@
   .stag-hero .crest{width:140px;height:140px}
   .stag-hero p{margin:0;font-size:17px;color:var(--ink);max-width:620px}
   .stag-hero p em{color:var(--gold)}
-  .hall{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:16px;margin-top:6px}
-  .champ{position:relative;border-radius:14px;padding:18px 18px 16px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid var(--gold-line);overflow:hidden}
-  .champ::before{content:"";position:absolute;inset:-40% -20% auto auto;width:180px;height:180px;background:radial-gradient(circle,rgba(255,255,255,.14),transparent 70%);pointer-events:none}
-  .champ .yr{font-family:var(--display);font-size:34px;font-weight:900;letter-spacing:1px;color:var(--gold);text-shadow:0 0 18px var(--gold-glow);line-height:1}
-  .champ .who{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:.8px;margin-top:10px;color:#fff}
+  .hall{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:18px;margin-top:6px}
+  .champ{position:relative;border-radius:10px;padding:22px 18px 18px;text-align:center;background:linear-gradient(180deg,rgba(14,22,20,.92),rgba(8,12,11,.96));border:1px solid var(--gold-line);overflow:hidden;
+    box-shadow:0 20px 40px -24px rgba(0,0,0,.95),inset 0 1px 0 rgba(255,255,255,.06)}
+  .champ::before{content:"";position:absolute;inset:5px;border-radius:7px;border:1px solid rgba(212,175,55,.16);pointer-events:none}
+  .champ .portrait{width:132px;height:132px;margin:0 auto 14px;border-radius:50%;overflow:hidden;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%);
+    box-shadow:0 0 0 3px #0a0d0c,0 0 0 5px var(--gold),0 0 0 6px #6b4d12,0 10px 26px -6px rgba(0,0,0,.95),0 0 22px rgba(217,182,87,.35);display:flex;align-items:center;justify-content:center}
+  .champ .portrait img{width:100%;height:100%;object-fit:cover;display:block}
+  .champ .portrait .crest{width:60%;height:60%;opacity:.85}
+  .champ .yr{font-family:var(--display);font-size:30px;font-weight:900;letter-spacing:2px;color:var(--gold);text-shadow:0 1px 0 rgba(255,244,200,.35),0 -1px 0 rgba(0,0,0,.9),0 0 18px var(--gold-glow);line-height:1}
+  .champ .who{font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:1.2px;margin-top:10px;color:#fff;text-transform:uppercase}
   .champ .note{color:var(--muted);font-style:italic;margin-top:6px;font-size:15px;min-height:1.4em}
-  .champ .pts{font-family:var(--display);font-size:12px;letter-spacing:1px;color:var(--leaf);margin-top:10px}
-  .champ.latest{border-color:rgba(255,255,255,.55);box-shadow:0 0 30px -8px rgba(255,255,255,.45)}
+  .champ .pts{font-family:var(--display);font-size:12px;letter-spacing:1.5px;color:var(--leaf);margin-top:10px}
+  .champ.latest{border-color:rgba(255,255,255,.55);box-shadow:0 0 30px -8px rgba(255,255,255,.45),0 20px 40px -24px rgba(0,0,0,.95)}
   .champ.latest .yr{color:#fff}
+  .champ.latest .portrait{box-shadow:0 0 0 3px #0a0d0c,0 0 0 5px #fff,0 0 0 6px var(--gold),0 10px 26px -6px rgba(0,0,0,.95),0 0 28px rgba(255,255,255,.45)}
   .empty{color:var(--muted);font-style:italic;padding:8px 0}
   /* ---- cards (TCG frames — mirrors the league's printed cards: black body, gold filigree, parchment panels) ---- */
   .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
@@ -544,6 +550,7 @@
       </div>
       <div class="row" style="margin-top:10px">
         <div class="f"><label>Legend (optional)</label><input id="chNote" placeholder="e.g. Rode Scheffler to a Masters payday"></div>
+        <div class="f"><label>Portrait (optional)</label><input id="chPhoto" type="file" accept="image/*"></div>
         <div><button class="btn" id="chSave">Crown champion</button></div>
         <div><button class="btn ghost" id="chDelete">Remove</button></div>
       </div>
@@ -576,7 +583,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-12';
+  const BUILD = '2026-09-17-13';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -924,6 +931,7 @@
     catch (e) { $('hall').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
     $('hall').innerHTML = rows.map((c, i) => `
       <div class="champ ${i === 0 ? 'latest' : ''}">
+        <div class="portrait">${c.image ? `<img src="${esc(c.image)}" alt="${esc(c.owner)}">` : '<svg class="crest" aria-hidden="true"><use href="#stag"/></svg>'}</div>
         <div class="yr">${c.season}</div>
         <div class="who">${esc(c.owner)}</div>
         <div class="note">${esc(c.note || '')}</div>
@@ -1100,13 +1108,22 @@
     catch (err) { msg('dcMsg', err.message, 'err'); }
   });
   $('adminPin').addEventListener('change', () => { loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); loadDiscordStatus().catch(() => {}); });
+  // shrink an uploaded photo to a data URL (max side 480px, JPEG) — same idea as card art
+  const photoToDataUrl = file => new Promise((res, rej) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => { const k = Math.min(1, 480 / Math.max(img.width, img.height)), cv = document.createElement('canvas');
+      cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k); cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url); res(cv.toDataURL('image/jpeg', 0.86)); };
+    img.onerror = () => rej(new Error('That file is not an image the browser can read.')); img.src = url;
+  });
   $('chSave').addEventListener('click', async () => {
     try {
       if (!$('chSeason').value || !$('chOwner').value.trim()) throw new Error('Season and champion name are required.');
+      const photo = $('chPhoto').files[0] ? await photoToDataUrl($('chPhoto').files[0]) : null;
       await rpc('admin_set_champion', { p_admin_pin: apin(), p_season: Number($('chSeason').value), p_owner: $('chOwner').value,
-        p_note: $('chNote').value || null, p_points: $('chPoints').value === '' ? null : Number($('chPoints').value) });
-      msg('chMsg', `${$('chOwner').value.trim()} crowned for ${$('chSeason').value}.`, 'ok');
-      $('chOwner').value = ''; $('chNote').value = ''; $('chPoints').value = '';
+        p_note: $('chNote').value || null, p_points: $('chPoints').value === '' ? null : Number($('chPoints').value), p_image: photo });
+      msg('chMsg', `${$('chOwner').value.trim()} crowned for ${$('chSeason').value}${photo ? ' with portrait' : ''}.`, 'ok');
+      $('chOwner').value = ''; $('chNote').value = ''; $('chPoints').value = ''; $('chPhoto').value = '';
     } catch (e) { msg('chMsg', e.message, 'err'); }
   });
   $('chDelete').addEventListener('click', async () => {
