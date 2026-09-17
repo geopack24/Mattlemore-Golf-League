@@ -52,7 +52,7 @@ create table if not exists card_library (        -- the pool of card designs, ke
   id          serial primary key,
   name        text not null,
   kind        text not null default 'Enchantment',
-  effect      text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse')),
+  effect      text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse','strokes')),
   params      jsonb not null default '{}',
   rules       text,
   flavor      text,
@@ -67,7 +67,7 @@ create table if not exists cards (               -- commissioner's TCG-style enc
   owner_id        int  not null references owners(id) on delete cascade,
   name            text not null,
   kind            text not null default 'Enchantment',      -- printed type line
-  effect          text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse')),
+  effect          text not null check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse','strokes')),
   params          jsonb not null default '{}',              -- multiply {"x":2} · flat {"amount":500000} · steal {"pct":25}
   rules           text,
   flavor          text,
@@ -92,9 +92,20 @@ alter table card_library add column if not exists tier text not null default 'co
 alter table cards        add column if not exists tier text not null default 'common' check (tier in ('common','rare','legendary','mythic'));
 -- keep the effect lists in step on an existing database
 alter table cards        drop constraint if exists cards_effect_check;
-alter table cards        add  constraint cards_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse'));
+alter table cards        add  constraint cards_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse','strokes'));
 alter table card_library drop constraint if exists card_library_effect_check;
-alter table card_library add  constraint card_library_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse'));
+alter table card_library add  constraint card_library_effect_check check (effect in ('multiply','flat','duel','steal','swap','shield','mulligan','custom','fellowship','curse','strokes'));
+
+create table if not exists live_scores (          -- ESPN leaderboard snapshot per tournament (written by the scores edge function)
+  tournament_id int primary key references tournaments(id) on delete cascade,
+  event_id    text,
+  event_name  text,
+  status      text,                               -- STATUS_SCHEDULED / STATUS_IN_PROGRESS / STATUS_FINAL ...
+  round       int,
+  fetched_at  timestamptz not null default now(),
+  field       jsonb not null default '[]'         -- [{name,key,pos,posn,score,strokes,thru,state,earnings}]
+);
+alter table picks add column if not exists winnings_source text;    -- 'auto' (from live scores) or 'manual' (commissioner typed it)
 
 create table if not exists champions (           -- The White Stag Club: one league champion per season
   season int primary key,
@@ -116,6 +127,7 @@ alter table settings    enable row level security;
 alter table champions   enable row level security;
 alter table cards       enable row level security;
 alter table card_library enable row level security;
+alter table live_scores enable row level security;
 
 revoke all on all tables in schema public from anon, authenticated;
 -- the announcer edge function reads with the service role (tables made via the SQL API don't get its default grants)
@@ -206,7 +218,7 @@ begin
       w := w || jsonb_build_object(tg, 0); b := b || jsonb_build_object(tg, 0); m := m || jsonb_build_object(tg, 0);
     end if;
 
-    if c.effect in ('duel','steal','swap','curse') and c.target_owner_id = any(sh) then
+    if c.effect in ('duel','steal','swap','curse','strokes') and c.target_owner_id = any(sh) then
       n := _note(n, a, c.name || ': fizzled — ' || _oname(c.target_owner_id) || ' was shielded');
       n := _note(n, tg, 'Shield blocked ' || _oname(c.owner_id) || '''s ' || c.name);
       continue;
@@ -284,6 +296,11 @@ begin
           n := _note(n, tg, c.name || ': ' || x || '%' || case when fk is not null then ' (forced ' || fk || ')' else '' end);
           n := _note(n, a,  c.name || ': ' || _oname(c.target_owner_id) || ' took ' || x || '%');
         end if;
+      when 'strokes' then
+        -- no automatic money math: the commissioner scores the golfer's adjusted finish when entering results
+        x := coalesce((c.params->>'n')::numeric, 1);
+        n := _note(n, tg, c.name || ': −' || x || ' strokes on your golfer — commissioner scores the adjusted finish');
+        n := _note(n, a,  c.name || ': −' || x || ' strokes on ' || _oname(c.target_owner_id) || '''s golfer');
       when 'shield'   then n := _note(n, a, c.name || ': shielded');
       when 'mulligan' then n := _note(n, a, c.name || ': mulligan');
       else                 n := _note(n, a, c.name || ' (commissioner applies)');
@@ -384,6 +401,126 @@ language sql stable security definer set search_path = public, extensions as $$
    where c.status = 'played' and now() >= t.lock_at and lower(c.name) = lower(trim(p_name))
    order by c.played_at desc limit 1;
 $$;
+
+-- Stroke penalties in effect for a tournament. Public and IMMEDIATE (unlike other cards) — the
+-- leaderboard shows the victim's −N strokes as soon as the card is played. Shielded victims are skipped.
+create or replace function tournament_penalties(p_tournament_id int)
+returns table (owner text, strokes numeric, cards text)
+language sql stable security definer set search_path = public, extensions as $$
+  select o.name, sum(coalesce((c.params->>'n')::numeric, 1)), string_agg(c.name, ', ' order by c.played_at)
+    from cards c join owners o on o.id = c.target_owner_id
+   where c.tournament_id = p_tournament_id and c.status = 'played' and c.effect = 'strokes'
+     and not exists (select 1 from cards s where s.owner_id = c.target_owner_id and s.tournament_id = p_tournament_id
+                        and s.status = 'played' and s.effect = 'shield')
+   group by o.name order by o.name;
+$$;
+
+-- ---------- Live scoring (ESPN feed → live_scores) ---------------------------
+-- Names are matched loosely: lower-case, accents folded, punctuation dropped.
+create or replace function _norm(t text) returns text language sql immutable as $$
+  select regexp_replace(regexp_replace(lower(translate(coalesce(t, ''), 'áàâäãåéèêëíìîïóòôöõøúùûüñçýÿÁÀÂÄÃÅÉÈÊËÍÌÎÏÓÒÔÖÕØÚÙÛÜÑÇ', 'aaaaaaeeeeiiiiooooooouuuuncyyAAAAAAEEEEIIIIOOOOOOOUUUUNC')), '[^a-z ]', '', 'g'), '\s+', ' ', 'g');
+$$;
+
+-- Standard PGA Tour purse distribution by finishing position (share of the purse).
+create or replace function _payout_pct(p int) returns numeric language sql immutable as $$
+  select case when p is null or p < 1 then 0
+              when p <= 65 then (array[18,10.9,6.9,4.9,4.1,3.625,3.375,3.125,2.925,2.725,2.525,2.325,2.125,1.925,1.825,1.725,1.625,1.525,1.425,1.325,
+                                       1.225,1.125,1.045,0.965,0.885,0.805,0.775,0.745,0.715,0.685,0.655,0.625,0.595,0.57,0.545,0.52,0.495,0.475,0.455,0.435,
+                                       0.415,0.395,0.375,0.355,0.335,0.315,0.295,0.279,0.265,0.257,0.251,0.245,0.241,0.237,0.235,0.233,0.231,0.229,0.227,0.225,
+                                       0.223,0.221,0.219,0.217,0.215])[p]::numeric / 100
+              else greatest(0, 0.215 - 0.002 * (p - 65)) / 100 end;
+$$;
+
+-- Each owner's golfer on the live leaderboard, with stroke penalties applied and the finish re-ranked against the
+-- whole field. projected = real earnings at that finish once the event is final, else purse × payout table.
+-- Only after lock (before that, picks are secret).
+create or replace function live_board(p_tournament_id int)
+returns table (owner text, golfer text, matched text, pos text, score int, thru text, state text, penalty numeric,
+               adj_score int, adj_pos int, adj_ties int, projected numeric, event_status text, event_name text, fetched_at timestamptz)
+language plpgsql stable security definer set search_path = public, extensions as $$
+declare t tournaments%rowtype; ls live_scores%rowtype; r record; f jsonb; sc int; adj int; posn int; ties int; share numeric; ern numeric; k text; lastn text;
+begin
+  select * into t from tournaments tt where tt.id = p_tournament_id;
+  if t.id is null or now() < t.lock_at then return; end if;
+  select * into ls from live_scores l where l.tournament_id = p_tournament_id;
+  if ls.tournament_id is null then return; end if;
+
+  for r in select o.name as oname, p.golfer as pgolfer,
+                  coalesce((select tp.strokes from tournament_penalties(p_tournament_id) tp where tp.owner = o.name), 0) as pen
+             from owners o join picks p on p.owner_id = o.id and p.tournament_id = p_tournament_id
+            where o.active order by o.name loop
+    k := _norm(r.pgolfer); lastn := split_part(k, ' ', array_length(string_to_array(k, ' '), 1));
+    select e into f from jsonb_array_elements(ls.field) e where e->>'key' = k limit 1;
+    if f is null then   -- fall back to same surname + same first initial ("S. Scheffler")
+      select e into f from jsonb_array_elements(ls.field) e
+       where split_part(e->>'key', ' ', array_length(string_to_array(e->>'key', ' '), 1)) = lastn and left(e->>'key', 1) = left(k, 1) limit 1;
+    end if;
+    owner := r.oname; golfer := r.pgolfer; penalty := r.pen; event_status := ls.status; event_name := ls.event_name; fetched_at := ls.fetched_at;
+    if f is null then
+      matched := null; pos := null; score := null; thru := null; state := 'not in field'; adj_score := null; adj_pos := null; adj_ties := null; projected := 0;
+      return next; continue;
+    end if;
+    matched := f->>'name'; pos := f->>'pos'; thru := f->>'thru'; state := f->>'state';
+    sc := nullif(f->>'score', '')::int; score := sc;
+    if sc is null or (f->>'state') in ('STATUS_CUT','STATUS_WITHDRAWN','STATUS_DISQUALIFIED','STATUS_DQ','STATUS_WD','STATUS_MDF') then
+      adj_score := sc; adj_pos := null; adj_ties := null; projected := 0; return next; continue;
+    end if;
+    adj := sc + r.pen::int; adj_score := adj;
+    select count(*) + 1 into posn from jsonb_array_elements(ls.field) e
+     where nullif(e->>'score', '')::int < adj and e->>'key' <> f->>'key'
+       and (e->>'state') not in ('STATUS_CUT','STATUS_WITHDRAWN','STATUS_DISQUALIFIED','STATUS_DQ','STATUS_WD','STATUS_MDF');
+    select count(*) + 1 into ties from jsonb_array_elements(ls.field) e
+     where nullif(e->>'score', '')::int = adj and e->>'key' <> f->>'key'
+       and (e->>'state') not in ('STATUS_CUT','STATUS_WITHDRAWN','STATUS_DISQUALIFIED','STATUS_DQ','STATUS_WD','STATUS_MDF');
+    adj_pos := posn; adj_ties := ties;
+    ern := null;
+    if ls.status = 'STATUS_FINAL' then
+      if r.pen = 0 then ern := nullif(f->>'earnings', '')::numeric;
+      else select avg(nullif(e->>'earnings', '')::numeric) into ern from jsonb_array_elements(ls.field) e
+            where (e->>'posn')::int between posn and posn + ties - 1 and nullif(e->>'earnings', '')::numeric > 0; end if;
+      if ern is not null and ern <= 0 then ern := null; end if;
+    end if;
+    if ern is not null then projected := round(ern);
+    else select avg(_payout_pct(g)) into share from generate_series(posn, posn + ties - 1) g; projected := round(t.prize_pool * coalesce(share, 0)); end if;
+    return next;
+  end loop;
+end $$;
+
+-- Write live projections into picks.winnings (skipping anything the commissioner typed by hand).
+create or replace function _autofill_winnings(p_tournament_id int) returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare n int := 0; r record;
+begin
+  for r in select * from live_board(p_tournament_id) loop
+    update picks p set winnings = coalesce(r.projected, 0), winnings_source = 'auto', updated_at = now()
+      from owners o where o.id = p.owner_id and o.name = r.owner and p.tournament_id = p_tournament_id
+       and coalesce(p.winnings_source, '') <> 'manual';
+    if found then n := n + 1; end if;
+  end loop;
+  return n;
+end $$;
+
+create or replace function admin_autofill_winnings(p_admin_pin text, p_tournament_id int) returns int
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  if not exists (select 1 from live_scores where tournament_id = p_tournament_id) then raise exception 'No live scores for that tournament yet'; end if;
+  return _autofill_winnings(p_tournament_id);
+end $$;
+
+-- Run by pg_cron every 10 minutes: while a tournament is under way, ask the scores edge function to sync.
+create or replace function sync_scores() returns bigint
+language plpgsql security definer set search_path = public, extensions as $$
+declare akey text; url text;
+begin
+  if not exists (select 1 from tournaments tt where tt.lock_at <= now() and tt.start_date >= current_date - 4) then return null; end if;
+  select value into akey from settings where key = 'announce_key';
+  select value into url  from settings where key = 'scores_url';
+  if coalesce(akey, '') = '' or coalesce(url, '') = '' then return null; end if;
+  return net.http_post(url := url, body := '{}'::jsonb,
+                       headers := jsonb_build_object('Content-Type', 'application/json', 'x-announce-key', akey),
+                       timeout_milliseconds := 30000);
+end $$;
 
 -- Cards in play for a tournament — revealed at lock time, like picks.
 create or replace function tournament_cards(p_tournament_id int)
@@ -502,7 +639,7 @@ begin
   select * into v_t from tournaments tt where tt.id = p_tournament_id;
   if v_t.id is null then raise exception 'Unknown tournament'; end if;
   if now() >= v_t.lock_at then raise exception 'Too late — the % has already started', v_t.name; end if;
-  if v_c.effect in ('duel','steal','swap','curse','fellowship') then
+  if v_c.effect in ('duel','steal','swap','curse','fellowship','strokes') then
     select o.id into v_target from owners o where lower(o.name) = lower(trim(coalesce(p_target, ''))) and o.active;
     if v_target is null then raise exception 'Choose % for this card', case when v_c.effect = 'fellowship' then 'a partner' else 'an opponent' end; end if;
     if v_target = v_owner then raise exception 'You cannot target yourself'; end if;
@@ -623,6 +760,7 @@ returns void language plpgsql security definer set search_path = public, extensi
 begin
   perform _check_admin(p_admin_pin);
   update picks p set winnings = coalesce(p_winnings, 0),
+                     winnings_source = 'manual',
                      adjust = coalesce(p_adjust, p.adjust),
                      adjust_note = case when p_adjust_note is null then p.adjust_note else nullif(trim(p_adjust_note), '') end,
                      updated_at = now()
@@ -809,9 +947,11 @@ begin
   select * into t from tournaments tt where tt.id = p_tournament_id;
   if t.id is null then return null; end if;
   if now() >= t.lock_at then
-    select string_agg('• **' || o.name || '** — ' || coalesce(p.golfer, '_no pick_'), E'\n' order by o.name), count(p.id)
+    select string_agg('• **' || o.name || '** — ' || coalesce(p.golfer, '_no pick_')
+                      || coalesce(' ⚠️ −' || tp.strokes || ' strokes (' || tp.cards || ')', ''), E'\n' order by o.name), count(p.id)
       into picks_txt, n
       from owners o left join picks p on p.owner_id = o.id and p.tournament_id = t.id
+           left join tournament_penalties(t.id) tp on tp.owner = o.name
      where o.active;
     select string_agg('• **' || o.name || '** plays **' || c.name || '**'
                       || case when tg.name is null then '' when c.effect = 'fellowship' then ' with **' || tg.name || '**' else ' on **' || tg.name || '**' end,
@@ -847,6 +987,7 @@ language sql stable security definer set search_path = public, extensions as $$
            when 'mulligan'   then 'May reuse a golfer this week'
            when 'fellowship' then 'Partners get +$' || coalesce(c.params->>'amount', '500000') || ' each; $0 for both if either misses the cut'
            when 'curse'      then coalesce('Victim must pick ' || nullif(c.params->>'golfer', ''), 'Curse') || coalesce(' · ' || nullif(c.params->>'pct', '') || '% to their points', '')
+           when 'strokes'    then '−' || coalesce(c.params->>'n', '1') || ' strokes on the victim''s golfer'
            else 'Commissioner rules on it at results time' end,
          c.tier
     from cards c join owners o on o.id = c.owner_id join tournaments t on t.id = c.tournament_id
@@ -942,6 +1083,8 @@ begin
   create extension if not exists pg_cron;
   if exists (select 1 from cron.job where jobname = 'announce-locks') then perform cron.unschedule('announce-locks'); end if;
   perform cron.schedule('announce-locks', '*/5 * * * *', 'select public.announce_locked()');
+  if exists (select 1 from cron.job where jobname = 'sync-scores') then perform cron.unschedule('sync-scores'); end if;
+  perform cron.schedule('sync-scores', '*/10 * * * *', 'select public.sync_scores()');
 exception when others then raise notice 'pg_cron not available: %', sqlerrm;
 end $$;
 
@@ -952,10 +1095,12 @@ revoke execute on function _check_admin(text) from public, anon, authenticated;
 revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
 drop function if exists _discord_post(text);
 revoke execute on function _discord_message(int), _discord_cards(int), _discord_post(int), announce_locked() from public, anon, authenticated;
-grant execute on function _discord_message(int), _discord_cards(int) to service_role;   -- the announcer edge function
+revoke execute on function _autofill_winnings(int), sync_scores() from public, anon, authenticated;
+grant execute on function _discord_message(int), _discord_cards(int), _autofill_winnings(int) to service_role;   -- the edge functions
+grant all on live_scores to service_role;
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
-  revealed_card_names(), revealed_card(text),
+  revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
   admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text),

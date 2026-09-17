@@ -67,8 +67,15 @@ the only things it can do are call the PIN-protected functions in `schema.sql`.
 enter your PIN and a golfer, click **Lock it in**. The form shows the golfers you've already burned.
 You can change your pick until lock time. **My Picks** shows your full season.
 
-**Commissioner (after each tournament):** Commissioner tab → enter your PIN → choose the tournament →
-**Load picks** → type each golfer's prize money → **Save**. Standings update instantly.
+**During the tournament:** once picks lock, **This Week** shows a live leaderboard of everyone's golfer
+(position, score, holes played, projected money) pulled from ESPN every 10 minutes. Stroke-penalty cards are
+applied here automatically: the victim's golfer shows a "−N strokes" badge, an adjusted score, and the finish
+that score would earn against the real field.
+
+**Commissioner (after each tournament):** when the event goes final the winnings fill in by themselves from the
+live scores. To check or override them: Commissioner tab → enter your PIN → choose the tournament →
+**Load picks** → **Fill from live scores** or type each golfer's prize money → **Save**. Anything you type by hand
+is never overwritten by the automatic fill. Standings update instantly.
 If someone forgets their PIN, re-save them under **Owners** with a new PIN.
 
 ## The 2027 schedule
@@ -84,7 +91,7 @@ scoring always uses the winnings you enter. Fix any of them — or add/remove a 
 ## Cards (the commissioner's enchantments)
 
 Commissioner tab → **Design a card**: name the card, choose its **effect** (multiply my points,
-bonus/penalty, duel, steal %, swap, shield, mulligan, or custom), add the rules and flavor text and the artwork,
+bonus/penalty, duel, steal %, swap, shield, mulligan, stroke penalty, or custom), add the rules and flavor text and the artwork,
 then **Deal card** to an owner. New designs are saved to the **Card library** — the league's permanent pool — so
 any card can be dealt again to anyone, this season or next. From the library you can also edit a design or retire it.
 Only that owner can see the card, under **My Cards** (name + PIN). They play it on an upcoming week — and pick an

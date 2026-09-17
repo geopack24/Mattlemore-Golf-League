@@ -75,7 +75,7 @@
     .title-block h1{font-size:clamp(26px,8.6vw,40px)}.title-block .sub1{font-size:clamp(12px,3vw,16px)}.title-block .sub2{font-size:clamp(8.5px,1.9vw,11px)}}
   .navbar{position:relative;z-index:1;background:linear-gradient(180deg,rgba(60,62,58,.85),rgba(26,28,27,.9) 55%,rgba(12,14,13,.95)),url("assets/stone.jpg") center/640px repeat,#1a1c1b;
     border-top:2px solid #45473f;border-bottom:2px solid #030403;box-shadow:inset 0 1px 0 rgba(255,255,255,.1),inset 0 -6px 14px rgba(0,0,0,.5),0 14px 34px rgba(0,0,0,.7)}
-  nav{display:flex;gap:6px;justify-content:safe center;overflow-x:auto;scrollbar-width:none;max-width:1040px;margin:0 auto;padding:9px 12px}
+  nav{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:1040px;margin:0 auto;padding:9px 12px}
   nav::-webkit-scrollbar{display:none}
   nav button{font-family:var(--display);font-weight:700;font-size:13.5px;letter-spacing:2.2px;text-transform:uppercase;color:#e9e1cc;background:transparent;border:1px solid transparent;padding:12px 16px;border-radius:6px;white-space:nowrap;cursor:pointer;text-shadow:0 1px 0 #000,0 0 8px rgba(0,0,0,.8);transition:color .15s,background .15s}
   nav button:hover{color:#fff;background:rgba(255,255,255,.05)}
@@ -334,6 +334,12 @@
       <div class="kpi" id="boardKpi"></div>
     </div>
 
+    <div class="card hidden" id="liveCard">
+      <h2>Live leaderboard</h2>
+      <p class="sub" id="liveSub"></p>
+      <div class="scroll"><table id="liveTable"><thead><tr><th>Owner</th><th>Golfer</th><th>Pos</th><th class="num">Score</th><th>Thru</th><th>Penalty</th><th class="num">Adjusted</th><th class="num">Projected $</th></tr></thead><tbody></tbody></table></div>
+    </div>
+
     <div class="grid2">
       <div class="card" id="pickCard">
         <h2>Submit your pick</h2>
@@ -446,7 +452,7 @@
     <div class="card">
       <h2>Enter results</h2>
       <p class="sub">Type each golfer's actual prize money for the week. Points are calculated automatically.</p>
-      <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div><div><button class="btn ghost" id="adminAnnounce" title="Post this week's picks and cards to Discord now">Announce on Discord</button></div></div>
+      <div class="row"><div class="f"><label>Tournament</label><select id="adminTournament"></select></div><div><button class="btn ghost" id="adminLoadBoard">Load picks</button></div><div><button class="btn ghost" id="adminAnnounce" title="Post this week's picks and cards to Discord now">Announce on Discord</button></div><div><button class="btn ghost" id="adminAutofill" title="Write the live-leaderboard projections into winnings (skips anything you typed by hand)">Fill from live scores</button></div></div>
       <div class="scroll" style="margin-top:12px"><table id="adminResults"><thead><tr><th>Owner</th><th>Golfer</th><th>Winnings ($)</th><th>Adjustment ($)</th><th>Why</th><th></th><th class="num">Points after cards</th></tr></thead><tbody></tbody></table></div>
       <p class="hint">Adjustment: your ruling for anything the cards can't compute (a "custom" card, a judgment call, a correction). Applied after every card; the note shows in the scoring breakdown.</p>
       <div id="adminResultsMsg"></div>
@@ -584,7 +590,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-18';
+  const BUILD = '2026-09-17-20';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -631,6 +637,8 @@
     fellowship: { label: 'Fellowship — partner bonus; both bust if either misses the cut', target: 'Partner',
                   params: [{ k: 'amount', l: 'Bonus each ($)', t: 'number' }],
                   sum: p => `Partner up: +${fmt$(p.amount ?? 500000)} each — $0 for both if either misses the cut` },
+    strokes:    { label: "Stroke penalty — victim's golfer takes N strokes", target: 'Victim', params: [{ k: 'n', l: 'Strokes', t: 'number' }],
+                  sum: p => `−${p.n ?? 1} strokes on the victim's golfer, shown on the leaderboard immediately` },
     shield:     { label: 'Shield', params: [], sum: () => "Rivals' cards cannot touch me this week" },
     mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
     custom:     { label: 'Custom (commissioner rules on it at results time)', params: [], sum: () => 'Commissioner rules on it when entering results' },
@@ -764,7 +772,9 @@
       $('boardKpi').innerHTML = ''; $('boardTable').querySelector('tbody').innerHTML = '';
       return;
     }
-    const board = await rpc('tournament_board', { p_tournament_id: id });
+    const [board, penalties] = await Promise.all([rpc('tournament_board', { p_tournament_id: id }), rpc('tournament_penalties', { p_tournament_id: id }).catch(() => [])]);
+    const pen = Object.fromEntries(penalties.map(p => [p.owner, p]));   // stroke penalties show at once, lock or not
+    const penTag = o => pen[o] ? ` <span class="tag lock" title="${esc(pen[o].cards)}">−${Number(pen[o].strokes)} strokes</span>` : '';
     const picked = board.filter(b => b.has_picked).length;
     const locked = t.locked || new Date(t.lock_at) <= new Date();
     $('boardStatus').innerHTML = locked
@@ -783,9 +793,10 @@
     const rows = locked ? [...board].sort((a,b) => (b.points||0) - (a.points||0) || a.owner.localeCompare(b.owner)) : board;
     $('boardTable').querySelector('tbody').innerHTML = rows.map(b => `
       <tr><td><b>${esc(b.owner)}</b></td>
-          <td>${b.has_picked ? `<span class="tag in">Picked</span>` : `<span class="tag wait">${locked ? 'No pick' : 'Waiting'}</span>`}</td>
-          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${linkCards(esc(b.note))}</small>` : ''}</td>` : ''}
+          <td>${b.has_picked ? `<span class="tag in">Picked</span>` : `<span class="tag wait">${locked ? 'No pick' : 'Waiting'}</span>`}${locked ? '' : penTag(b.owner)}</td>
+          ${locked ? `<td>${esc(b.golfer) || '<span class="muted">—</span>'}${penTag(b.owner)}</td><td class="num">${b.points != null ? fmt$(b.points) : '—'}${b.note ? `<small class="note">${linkCards(esc(b.note))}</small>` : ''}</td>` : ''}
       </tr>`).join('');
+    if (locked) await loadLive(id); else $('liveCard').classList.add('hidden');
     if (locked) {
       const cards = await rpc('tournament_cards', { p_tournament_id: id });
       indexCards(cards);
@@ -796,6 +807,29 @@
       fitCards($('boardCards'));
     } else { $('boardCards').innerHTML = ''; await refreshUsedHint(); }
   }
+  // ---- live leaderboard (ESPN feed via live_board; stroke penalties applied, finish re-ranked) ----
+  const fmtPar = s => s == null ? '—' : s === 0 ? 'E' : (s > 0 ? '+' + s : String(s));
+  async function loadLive(id) {
+    const rows = await rpc('live_board', { p_tournament_id: id }).catch(() => []);
+    const card = $('liveCard'); if (!rows.length) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    const r0 = rows[0], st = ({ STATUS_IN_PROGRESS: 'in progress', STATUS_FINAL: 'final', STATUS_SCHEDULED: 'not started yet', STATUS_SUSPENDED: 'suspended', STATUS_DELAYED: 'delayed' })[r0.event_status]
+      || String(r0.event_status || '').replace('STATUS_', '').toLowerCase();
+    $('liveSub').textContent = `${r0.event_name} · ${st} · ESPN scores as of ${fmtWhen(r0.fetched_at)}, refreshed every 10 minutes. ` +
+      `Stroke penalties are added to the victim's golfer and that finish is re-ranked against the whole field; projected money uses the Tour payout table until the event is final, then real earnings.`;
+    $('liveTable').querySelector('tbody').innerHTML = rows.sort((a, b) => (a.adj_pos ?? 999) - (b.adj_pos ?? 999) || a.owner.localeCompare(b.owner)).map(r => `<tr>
+      <td><b>${esc(r.owner)}</b></td>
+      <td>${esc(r.golfer)}${r.matched && r.matched !== r.golfer ? `<small class="note" style="color:var(--muted)">${esc(r.matched)}</small>` : ''}${r.state === 'not in field' ? '<small class="note" style="color:var(--amber)">not in this field</small>' : ''}</td>
+      <td>${esc(r.pos || '—')}</td><td class="num">${fmtPar(r.score)}</td><td>${esc(r.thru || '')}</td>
+      <td>${Number(r.penalty) ? `<span class="tag lock">−${Number(r.penalty)} strokes</span>` : ''}</td>
+      <td class="num">${Number(r.penalty) ? `<b>${fmtPar(r.adj_score)}</b> <span class="muted">${r.adj_pos ? '(' + (r.adj_ties > 1 ? 'T' : '') + r.adj_pos + ')' : ''}</span>` : '—'}</td>
+      <td class="num">${fmt$(r.projected)}</td></tr>`).join('');
+  }
+  setInterval(() => {                                    // keep the live card fresh while someone is watching the board
+    if ($('view-board').classList.contains('hidden') || $('liveCard').classList.contains('hidden')) return;
+    const id = Number($('boardTournament').value); if (id) loadLive(id).catch(() => {});
+  }, 120000);
+
   async function refreshUsedHint() {
     const name = $('pickOwner').value, pin = $('pickPin').value;
     $('usedHint').textContent = '';
@@ -969,6 +1003,12 @@
   $('setDiscordBtn').addEventListener('click', async () => {
     try { await rpc('admin_set_discord', { p_admin_pin: apin(), p_url: $('setDiscord').value }); $('setDiscord').value = ''; msg('settingsMsg', 'Discord updated.', 'ok'); await loadDiscordStatus(); }
     catch (e) { msg('settingsMsg', e.message, 'err'); }
+  });
+  $('adminAutofill').addEventListener('click', async () => {
+    try {
+      const n = await rpc('admin_autofill_winnings', { p_admin_pin: apin(), p_tournament_id: Number($('adminTournament').value) });
+      await loadAdminBoard(); msg('adminResultsMsg', `Filled ${n} pick${n === 1 ? '' : 's'} from the live leaderboard. Anything you typed by hand was left alone.`, 'ok');
+    } catch (e) { msg('adminResultsMsg', e.message, 'err'); }
   });
   $('adminAnnounce').addEventListener('click', async () => {
     try {
@@ -1152,9 +1192,10 @@
     msg('adminResultsMsg', '');
     const id = Number($('adminTournament').value); const t = tournaments.find(x => x.id === id);
     if (!t.locked) { $('adminResults').querySelector('tbody').innerHTML = `<tr><td colspan="7" class="muted">This tournament hasn't locked yet — picks are still hidden (even from the commissioner). Come back after ${fmtWhen(t.lock_at)}.</td></tr>`; return; }
-    const board = await rpc('tournament_board', { p_tournament_id: id });
+    const [board, penalties] = await Promise.all([rpc('tournament_board', { p_tournament_id: id }), rpc('tournament_penalties', { p_tournament_id: id }).catch(() => [])]);
+    const pen = Object.fromEntries(penalties.map(p => [p.owner, p]));
     $('adminResults').querySelector('tbody').innerHTML = board.map(b => `<tr>
-      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}</td>
+      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}${pen[b.owner] ? `<small class="note" style="color:var(--amber)">−${Number(pen[b.owner].strokes)} strokes (${esc(pen[b.owner].cards)}) — score the adjusted finish</small>` : ''}</td>
       <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:150px">` : '—'}</td>
       <td>${b.has_picked ? `<input type="number" step="1" class="adj" data-owner="${esc(b.owner)}" value="${Number(b.adjust) || 0}" style="max-width:130px">` : ''}</td>
       <td>${b.has_picked ? `<input type="text" class="adj-note" data-owner="${esc(b.owner)}" value="${esc(b.adjust_note || '')}" placeholder="e.g. Ring of the Covenant" style="min-width:160px">` : ''}</td>
