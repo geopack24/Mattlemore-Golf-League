@@ -202,7 +202,7 @@
   .mc>*{position:absolute}
   .mc .mc-art{left:7.8%;top:12.1%;width:85.5%;height:44.7%;object-fit:cover;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%)}
   .mc .mc-art .crest{width:50%;height:50%;opacity:.85}
-  .mc .mc-frame{inset:0;width:100%;height:100%;pointer-events:none}
+  .mc .mc-frame{inset:0;width:100%;height:100%;pointer-events:none;filter:saturate(.78) brightness(.9) contrast(1.06)}   /* tone the painted frames down to match the gritty site */
   /* lettering: solid white on Common/Rare, solid gold on Legendary/Mythic, hard dark edge so it reads on the textured bars */
   .mc .mc-title,.mc .mc-type{display:flex;align-items:center;padding:0 2cqw;font-family:Marcellus,Cinzel,serif;white-space:nowrap;overflow:hidden;line-height:1;font-weight:700;
     color:var(--tf);-webkit-text-stroke:.16cqw rgba(0,0,0,.9);paint-order:stroke fill;
@@ -584,7 +584,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-15';
+  const BUILD = '2026-09-17-16';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
