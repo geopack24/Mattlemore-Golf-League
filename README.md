@@ -97,7 +97,7 @@ any card can be dealt again to anyone, this season or next. From the library you
 Only that owner can see the card, under **My Cards** (name + PIN). They play it on an upcoming week — and pick an
 opponent if the card needs one — and it stays secret until that tournament locks. Then it shows up on **This Week**
 under "Cards in play" and the points are recalculated automatically; every affected score carries a note saying what
-happened (e.g. "Ryder Die: beat Mike (×2)"). One card in play per owner per week. Shields cancel duels, steals and
+happened (e.g. "Ryder Die: beat Mike (×2)"). At most three cards per owner per tournament (unless a card exempts itself). Cards whose type line says **Instant** can be played mid-tournament until 8 PM ET on day 3, or later as a response to an Instant played on you — see `RULES.md`. Shields cancel duels, steals and
 swaps aimed at their holder. A mulligan lets that owner reuse a golfer that week. "Custom" cards have no automatic
 math — apply them by editing the winnings.
 

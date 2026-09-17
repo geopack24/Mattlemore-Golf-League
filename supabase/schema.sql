@@ -78,7 +78,7 @@ create table if not exists cards (               -- commissioner's TCG-style enc
   dealt_at        timestamptz not null default now(),
   played_at       timestamptz
 );
-create unique index if not exists cards_one_in_play_per_week on cards (owner_id, tournament_id) where status = 'played';
+drop index if exists cards_one_in_play_per_week;   -- was one card per owner per week; the limit is now 3 (enforced in play_card, see RULES.md)
 alter table cards add column if not exists library_id int references card_library(id) on delete set null;
 -- commissioner's manual adjustment for cards/rulings the engine can't compute (applied after cards)
 alter table picks add column if not exists adjust numeric not null default 0;
@@ -106,6 +106,8 @@ create table if not exists live_scores (          -- ESPN leaderboard snapshot p
   field       jsonb not null default '[]'         -- [{name,key,pos,posn,score,strokes,thru,state,earnings}]
 );
 alter table picks add column if not exists winnings_source text;    -- 'auto' (from live scores) or 'manual' (commissioner typed it)
+alter table card_library add column if not exists exempt_limit boolean not null default false;   -- card text exempts it from the 3-cards-per-tournament cap
+alter table cards        add column if not exists exempt_limit boolean not null default false;
 
 create table if not exists champions (           -- The White Stag Club: one league champion per season
   season int primary key,
@@ -367,6 +369,7 @@ drop function if exists admin_list_library(text);
 drop function if exists admin_deal_card(text, text, text, text, text, jsonb, text, text, text);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean);
+drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text);
 drop function if exists admin_list_cards(text);
 drop function if exists revealed_card(text);
 create or replace function tournament_board(p_tournament_id int)
@@ -601,13 +604,13 @@ end $$;
 
 create or replace function my_cards(p_owner text, p_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean, tier text)
+               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean, tier text, exempt_limit boolean)
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
     select c.id, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.status,
-           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card, c.tier
+           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card, c.tier, c.exempt_limit
       from cards c
       left join tournaments t on t.id = c.tournament_id
       left join owners tg on tg.id = c.target_owner_id
@@ -630,6 +633,35 @@ begin
      order by c.played_at;
 end $$;
 
+-- ---------- Timing rules (see RULES.md) ---------------------------------------
+-- A card whose type line says "Instant" may be played after lock, until 8 PM ET on day 3 of the tournament.
+-- An owner hit by an Instant may respond with their own Instant until the tournament ends (midnight ET after day 4);
+-- on the final day (day 4) that response may only target someone who has already hit them with an Instant.
+create or replace function _is_instant(p_kind text) returns boolean language sql immutable as $$
+  select lower(coalesce(p_kind, '')) like '%instant%';
+$$;
+create or replace function _instant_cutoff(p_start date) returns timestamptz language sql immutable as $$
+  select ((p_start + 2)::timestamp + interval '20 hours') at time zone 'America/New_York';      -- day 3, 8:00 PM ET
+$$;
+create or replace function _final_day(p_start date) returns timestamptz language sql immutable as $$
+  select (p_start + 3)::timestamp at time zone 'America/New_York';                             -- day 4, 12:00 AM ET
+$$;
+create or replace function _tournament_end(p_start date) returns timestamptz language sql immutable as $$
+  select (p_start + 4)::timestamp at time zone 'America/New_York';                             -- midnight ET after day 4
+$$;
+
+-- Text-only Discord post (used for mid-tournament plays). Never fails the caller.
+create or replace function _discord_text(p_msg text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare hook text;
+begin
+  select value into hook from settings where key = 'discord_webhook';
+  if coalesce(hook, '') = '' then return; end if;
+  perform net.http_post(url := hook, body := jsonb_build_object('content', left(p_msg, 1990), 'username', 'The White Stag'),
+                        headers := '{"Content-Type":"application/json"}'::jsonb);
+exception when others then null;
+end $$;
+
 create or replace function play_card(p_owner text, p_pin text, p_card_id int, p_tournament_id int, p_target text default null)
 returns json language plpgsql security definer set search_path = public, extensions as $$
 declare
@@ -637,24 +669,53 @@ declare
   v_c      cards%rowtype;
   v_t      tournaments%rowtype;
   v_target int;
+  v_live   boolean;      -- played after lock (Instant)
+  v_n      int;
 begin
   select * into v_c from cards cd where cd.id = p_card_id and cd.owner_id = v_owner;
   if v_c.id is null then raise exception 'That card is not in your hand'; end if;
   if v_c.status <> 'held' then raise exception 'That card is already in play'; end if;
   select * into v_t from tournaments tt where tt.id = p_tournament_id;
   if v_t.id is null then raise exception 'Unknown tournament'; end if;
-  if now() >= v_t.lock_at then raise exception 'Too late — the % has already started', v_t.name; end if;
   if v_c.effect in ('duel','steal','swap','curse','fellowship','strokes') then
     select o.id into v_target from owners o where lower(o.name) = lower(trim(coalesce(p_target, ''))) and o.active;
     if v_target is null then raise exception 'Choose % for this card', case when v_c.effect = 'fellowship' then 'a partner' else 'an opponent' end; end if;
     if v_target = v_owner then raise exception 'You cannot target yourself'; end if;
   end if;
-  if exists (select 1 from cards cd where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played') then
-    raise exception 'You already have a card in play for the %', v_t.name;
+
+  v_live := now() >= v_t.lock_at;
+  if v_live then
+    if not _is_instant(v_c.kind) then raise exception 'Too late — the % has already started. Only Instants can be played mid-tournament.', v_t.name; end if;
+    if now() >= _tournament_end(v_t.start_date) then raise exception 'The % is over', v_t.name; end if;
+    if now() >= _instant_cutoff(v_t.start_date) then
+      -- past the 8 PM day-3 cutoff: only an owner who has been hit by an Instant may respond
+      if not exists (select 1 from cards x where x.tournament_id = p_tournament_id and x.status = 'played'
+                       and x.target_owner_id = v_owner and x.owner_id <> v_owner and _is_instant(x.kind)) then
+        raise exception 'Instants close at 8 PM ET on day 3. After that only an owner hit by an Instant may respond with one.';
+      end if;
+      if now() >= _final_day(v_t.start_date) and v_target is not null and not exists (
+           select 1 from cards x where x.tournament_id = p_tournament_id and x.status = 'played'
+             and x.owner_id = v_target and x.target_owner_id = v_owner and _is_instant(x.kind)) then
+        raise exception 'On the final day a response Instant may only target someone who already hit you with an Instant';
+      end if;
+    end if;
   end if;
+
+  -- 3 cards per owner per tournament unless the card text exempts it
+  if not v_c.exempt_limit then
+    select count(*) into v_n from cards cd
+     where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played' and not cd.exempt_limit;
+    if v_n >= 3 then raise exception 'Three cards is the limit for one tournament (the % already has % of yours)', v_t.name, v_n; end if;
+  end if;
+
   update cards set status = 'played', tournament_id = p_tournament_id, target_owner_id = v_target, played_at = now()
    where id = p_card_id;
-  return json_build_object('ok', true, 'card', v_c.name, 'tournament', v_t.name, 'target', _oname(v_target));
+  if v_live then
+    perform _discord_text('⚡ **' || p_owner || '** plays **' || v_c.name || '**'
+      || case when v_target is null then '' when v_c.effect = 'fellowship' then ' with **' || _oname(v_target) || '**' else ' on **' || _oname(v_target) || '**' end
+      || ' — ' || v_t.name || case when now() >= _instant_cutoff(v_t.start_date) then ' (response)' else '' end);
+  end if;
+  return json_build_object('ok', true, 'card', v_c.name, 'tournament', v_t.name, 'target', _oname(v_target), 'live', v_live);
 end $$;
 
 create or replace function unplay_card(p_owner text, p_pin text, p_card_id int)
@@ -839,7 +900,7 @@ end $$;
 
 create or replace function admin_list_library(p_admin_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text)
+               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text, exempt_limit boolean)
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
@@ -847,7 +908,7 @@ begin
     select l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.retired,
            (select count(*) from cards c where c.library_id = l.id and c.status <> 'revoked')::int,
            (select count(*) from cards c where c.library_id = l.id and c.status = 'held')::int,
-           l.created_at, l.full_card, l.tier
+           l.created_at, l.full_card, l.tier, l.exempt_limit
       from card_library l
      order by l.retired, lower(l.name);
 end $$;
@@ -856,22 +917,25 @@ end $$;
 create or replace function admin_save_library_card(p_admin_pin text, p_id int, p_name text, p_kind text, p_effect text,
                                                    p_params jsonb default '{}', p_rules text default null,
                                                    p_flavor text default null, p_image text default null,
-                                                   p_full_card boolean default null, p_tier text default null)
+                                                   p_full_card boolean default null, p_tier text default null,
+                                                   p_exempt_limit boolean default null)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int;
 begin
   perform _check_admin(p_admin_pin);
   if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
   if p_id is null then
-    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier)
+    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit)
     values (trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect, coalesce(p_params, '{}'),
-            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false), coalesce(p_tier, 'common'))
+            nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false), coalesce(p_tier, 'common'),
+            coalesce(p_exempt_limit, false))
     returning id into v_id;
   else
     update card_library
        set name = trim(p_name), kind = coalesce(nullif(trim(p_kind), ''), 'Enchantment'), effect = p_effect,
            params = coalesce(p_params, '{}'), rules = nullif(trim(p_rules), ''), flavor = nullif(trim(p_flavor), ''),
-           image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), tier = coalesce(p_tier, tier), updated_at = now()
+           image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), tier = coalesce(p_tier, tier),
+           exempt_limit = coalesce(p_exempt_limit, exempt_limit), updated_at = now()
      where id = p_id returning id into v_id;
     if v_id is null then raise exception 'No such library card'; end if;
   end if;
@@ -896,8 +960,8 @@ begin
   if l.id is null then raise exception 'No such library card'; end if;
   select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
   if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
-  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier)
-  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card, l.tier)
+  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit)
+  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card, l.tier, l.exempt_limit)
   returning id into v_id;
   return v_id;
 end $$;
@@ -1100,7 +1164,7 @@ revoke execute on function _check_admin(text) from public, anon, authenticated;
 revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
 drop function if exists _discord_post(text);
 revoke execute on function _discord_message(int), _discord_cards(int), _discord_post(int), announce_locked() from public, anon, authenticated;
-revoke execute on function _autofill_winnings(int), sync_scores() from public, anon, authenticated;
+revoke execute on function _autofill_winnings(int), sync_scores(), _discord_text(text) from public, anon, authenticated;
 grant execute on function _discord_message(int), _discord_cards(int), _autofill_winnings(int) to service_role;   -- the edge functions
 grant all on live_scores to service_role;
 grant execute on function
@@ -1108,7 +1172,7 @@ grant execute on function
   revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
-  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   admin_announce(text, int), admin_set_discord(text, text), admin_discord_status(text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),

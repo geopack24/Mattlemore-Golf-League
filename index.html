@@ -497,6 +497,9 @@
       <div class="row" style="margin-top:10px">
         <label class="chk"><input type="checkbox" id="dcFull"> the image is the whole card (title, type and text already on it) — show it as-is</label>
       </div>
+      <div class="row" style="margin-top:6px">
+        <label class="chk"><input type="checkbox" id="dcExempt"> exempt from the 3-cards-per-tournament limit (the card text says so)</label>
+      </div>
       <div class="row" style="margin-top:12px;align-items:center">
         <div><button class="btn" id="dcDeal">Deal card</button></div>
         <div><button class="btn ghost" id="dcSave">Save to library</button></div>
@@ -590,7 +593,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-22';
+  const BUILD = '2026-09-17-23';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -811,6 +814,7 @@
   const fmtPar = s => s == null ? '—' : s === 0 ? 'E' : (s > 0 ? '+' + s : String(s));
   const fmtStrokes = n => { n = Number(n) || 0; return `${n < 0 ? '−' : '+'}${Math.abs(n)} stroke${Math.abs(n) === 1 ? '' : 's'}`; };
   const strokesClass = n => Number(n) < 0 ? 'open' : 'lock';    // green when it helps, amber when it hurts
+  const isInstant = c => /instant/i.test(c.kind || '');          // type line "Instant" = playable mid-tournament (RULES.md)
   async function loadLive(id) {
     const rows = await rpc('live_board', { p_tournament_id: id }).catch(() => []);
     const card = $('liveCard'); if (!rows.length) { card.classList.add('hidden'); return; }
@@ -908,15 +912,20 @@
     try {
       const cards = await rpc('my_cards', { p_owner: name, p_pin: pin });
       remember(name, pin); indexCards(cards);
-      const open = tournaments.filter(t => !t.locked), rivals = owners.filter(o => o.name !== name);
+      const upcoming = tournaments.filter(t => !t.locked), rivals = owners.filter(o => o.name !== name);
+      // Instants may also be played into a tournament that is under way (server enforces the 8 PM day-3 cutoff and the response rule)
+      const underway = tournaments.filter(t => t.locked && Date.now() < new Date(t.start_date + 'T00:00:00-04:00').getTime() + 4 * 864e5);
       $('hand').innerHTML = cards.map(c => {
-        const e = EFFECTS[c.effect] || EFFECTS.custom;
+        const e = EFFECTS[c.effect] || EFFECTS.custom, instant = isInstant(c);
+        const open = instant ? [...underway, ...upcoming] : upcoming;
         let foot;
         if (c.status === 'held') {
           foot = `<div class="row">
-            <div class="f"><label>Play on</label><select class="play-t">${open.map(t => `<option value="${t.id}">${esc(t.name)} · ${fmtDate(t.start_date)}</option>`).join('')}</select></div>
+            <div class="f"><label>Play on</label><select class="play-t">${open.map(t => `<option value="${t.id}">${esc(t.name)} · ${fmtDate(t.start_date)}${t.locked ? ' · under way' : ''}</option>`).join('')}</select></div>
             ${e.target ? `<div class="f"><label>${esc(e.target)}</label><select class="play-target">${rivals.map(o => `<option>${esc(o.name)}</option>`).join('')}</select></div>` : ''}
-            <div><button class="btn play-btn" data-id="${c.id}" ${open.length ? '' : 'disabled'}>Play</button></div></div>`;
+            <div><button class="btn play-btn" data-id="${c.id}" ${open.length ? '' : 'disabled'}>Play</button></div></div>
+            ${instant ? '<small class="note" style="color:var(--muted)">Instant — can be played mid-tournament until 8 PM ET on day 3 (later only as a response to an Instant played on you).</small>' : ''}
+            ${c.exempt_limit ? '<small class="note" style="color:var(--muted)">Does not count toward the 3-cards-per-tournament limit.</small>' : ''}`;
         } else if (!c.locked) {
           foot = `<span class="tag in">In play</span> ${esc(c.tournament)}${c.target ? ` ${c.effect === 'fellowship' ? 'with' : 'vs'} <b>${esc(c.target)}</b>` : ''}
             <button class="btn ghost unplay-btn" data-id="${c.id}" style="margin-left:8px;padding:7px 12px">Take back</button>`;
@@ -940,7 +949,7 @@
         const box = play.closest('.cardwrap');
         const r = await rpc('play_card', { p_owner: name, p_pin: pin, p_card_id: Number(play.dataset.id),
           p_tournament_id: Number(box.querySelector('.play-t').value), p_target: box.querySelector('.play-target')?.value || null });
-        text = `${r.card} is in play for the ${r.tournament}${r.target ? ` against ${r.target}` : ''}. Nobody sees it until lock.`;
+        text = `${r.card} is in play for the ${r.tournament}${r.target ? ` against ${r.target}` : ''}. ${r.live ? 'It is live now — everyone can see it on This Week and Discord has been told.' : 'Nobody sees it until lock.'}`;
       } else {
         await rpc('unplay_card', { p_owner: name, p_pin: pin, p_card_id: Number(un.dataset.id) });
         text = 'Card returned to your hand.';
@@ -1044,9 +1053,10 @@
     fitCards($('dcPreview'));
   }
   const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
-    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked, p_tier: $('dcTier').value });
+    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked, p_tier: $('dcTier').value,
+    p_exempt_limit: $('dcExempt').checked });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
@@ -1132,7 +1142,7 @@
         const l = libRows.find(x => x.id === Number(edit.dataset.id)); if (!l) return;
         dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
         $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
-        $('dcFull').checked = !!l.full_card; $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
+        $('dcFull').checked = !!l.full_card; $('dcExempt').checked = !!l.exempt_limit; $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
         $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
         $('dcTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
