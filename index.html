@@ -584,7 +584,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-16';
+  const BUILD = '2026-09-17-17';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     if (m && m[1] !== BUILD && !location.search.includes('v=' + m[1])) location.replace(location.pathname + '?v=' + m[1] + location.hash);
@@ -704,6 +704,12 @@
     requestAnimationFrame(() => root.querySelectorAll('.tcg:not(.full), .mc').forEach(card => {
       const t = card.querySelector('.tcg-text, .mc-text'), h = card.querySelector('.tcg-title, .mc-title'), k = card.querySelector('.mc-type');
       if (t) shrink(t, false, 7); if (h) shrink(h, true, 9); if (k) shrink(k, true, 7);
+      const l = card.querySelector('.mc-coll.l'), r = card.querySelector('.mc-coll.r');   // the two collector texts must not collide
+      if (l && r) {
+        l.style.fontSize = r.style.fontSize = ''; let s = parseFloat(getComputedStyle(l).fontSize);
+        const collide = () => l.getBoundingClientRect().right + 6 > r.getBoundingClientRect().left;
+        while (collide() && s > 4.5) { s -= 0.25; l.style.fontSize = r.style.fontSize = s + 'px'; }
+      }
     }));
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
