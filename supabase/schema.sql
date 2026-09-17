@@ -299,7 +299,7 @@ begin
       when 'strokes' then
         -- no automatic money math: the commissioner scores the golfer's adjusted finish when entering results
         x := coalesce((c.params->>'n')::numeric, 1);
-        n := _note(n, tg, c.name || ': −' || x || ' strokes on your golfer — commissioner scores the adjusted finish');
+        n := _note(n, tg, c.name || ': −' || x || ' strokes on your golfer — applied automatically on the live leaderboard');
         n := _note(n, a,  c.name || ': −' || x || ' strokes on ' || _oname(c.target_owner_id) || '''s golfer');
       when 'shield'   then n := _note(n, a, c.name || ': shielded');
       when 'mulligan' then n := _note(n, a, c.name || ': mulligan');

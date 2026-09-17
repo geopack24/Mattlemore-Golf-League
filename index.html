@@ -590,7 +590,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-20';
+  const BUILD = '2026-09-17-21';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1195,7 +1195,7 @@
     const [board, penalties] = await Promise.all([rpc('tournament_board', { p_tournament_id: id }), rpc('tournament_penalties', { p_tournament_id: id }).catch(() => [])]);
     const pen = Object.fromEntries(penalties.map(p => [p.owner, p]));
     $('adminResults').querySelector('tbody').innerHTML = board.map(b => `<tr>
-      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}${pen[b.owner] ? `<small class="note" style="color:var(--amber)">−${Number(pen[b.owner].strokes)} strokes (${esc(pen[b.owner].cards)}) — score the adjusted finish</small>` : ''}</td>
+      <td><b>${esc(b.owner)}</b></td><td>${esc(b.golfer) || '<span class="muted">no pick</span>'}${pen[b.owner] ? `<small class="note" style="color:var(--amber)">−${Number(pen[b.owner].strokes)} strokes (${esc(pen[b.owner].cards)}) — applied automatically; "Fill from live scores" uses the adjusted finish</small>` : ''}</td>
       <td>${b.has_picked ? `<input type="number" step="1" min="0" data-owner="${esc(b.owner)}" value="${b.winnings ?? 0}" style="max-width:150px">` : '—'}</td>
       <td>${b.has_picked ? `<input type="number" step="1" class="adj" data-owner="${esc(b.owner)}" value="${Number(b.adjust) || 0}" style="max-width:130px">` : ''}</td>
       <td>${b.has_picked ? `<input type="text" class="adj-note" data-owner="${esc(b.owner)}" value="${esc(b.adjust_note || '')}" placeholder="e.g. Ring of the Covenant" style="min-width:160px">` : ''}</td>
