@@ -206,12 +206,16 @@
   /* lettering: the same beveled, extruded metal capitals as the site title (Cinzel; gradient face, bright top rim via ::before,
      dark extrusion + shadow via ::after). Silver on Common/Rare, gold on Legendary/Mythic. Both pseudo-elements repeat the text
      from data-text. No filter may sit on these elements themselves (Chromium drops background-clip:text fills when filtered). */
-  .mc{--face:linear-gradient(180deg,#ffffff 0%,#eef1f5 28%,#c9d0d9 46%,#9ea8b5 52%,#dfe4ea 62%,#ffffff 100%);--rim:rgba(255,255,255,.92);--ext:#2f353d;--ext2:#171b20}
-  .mc.tier-legendary,.mc.tier-mythic{--face:linear-gradient(180deg,#fffae4 0%,#fbe7a6 28%,#f0cf6c 46%,#d6ad45 52%,#f5d97e 62%,#fff3c6 100%);--rim:rgba(255,252,235,.92);--ext:#6b4d12;--ext2:#3a2807}
-  .mc .mc-title,.mc .mc-type{display:flex;align-items:center;font-family:var(--display);font-weight:900;white-space:nowrap;line-height:1;z-index:1}
+  /* NB: no sharp dark "horizon" stop in these gradients — at card sizes it rasterises to a 1px strike through every letter */
+  .mc{--face:linear-gradient(180deg,#ffffff 0%,#eef1f5 35%,#c7ced8 55%,#e6eaef 75%,#ffffff 100%);--face2:linear-gradient(180deg,#ffffff 0%,#e9edf2 60%,#c9d0d9 100%);
+      --rim:rgba(255,255,255,.92);--ext:#2f353d;--ext2:#171b20}
+  .mc.tier-legendary,.mc.tier-mythic{--face:linear-gradient(180deg,#fffae4 0%,#fbe7a6 35%,#e9c766 55%,#f5d97e 75%,#fff3c6 100%);--face2:linear-gradient(180deg,#fff3c6 0%,#f6dc8e 60%,#e2bb55 100%);
+      --rim:rgba(255,252,235,.92);--ext:#6b4d12;--ext2:#3a2807}
+  .mc .mc-title,.mc .mc-type{display:flex;align-items:center;font-family:var(--display);font-weight:900;white-space:nowrap;line-height:1;z-index:1;overflow:hidden}   /* overflow:hidden = safety net; fitCards() shrinks the text so it never has to clip */
   /* the gradient face lives on an inner span so it paints ABOVE the rim/extrusion pseudo-elements (an element's own
      background paints below its negative-z children, which is why the face went dark on the first attempt) */
   .mc .mc-title>span,.mc .mc-type>span{position:relative;z-index:1;background:var(--face);-webkit-background-clip:text;background-clip:text;color:transparent;-webkit-text-fill-color:transparent}
+  .mc .mc-type>span{background-image:var(--face2)}                             /* flatter shade for the small type line (background-image only: the shorthand would reset background-clip) */
   .mc .mc-title::before,.mc .mc-title::after,.mc .mc-type::before,.mc .mc-type::after{content:attr(data-text);position:absolute;inset:0;padding:inherit;display:flex;align-items:center;
     z-index:0;letter-spacing:inherit;white-space:nowrap}
   .mc .mc-title::before,.mc .mc-type::before{-webkit-text-fill-color:var(--rim);color:var(--rim);transform:translateY(-.18cqw)}
@@ -602,7 +606,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-24';
+  const BUILD = '2026-09-17-26';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -716,30 +720,41 @@
   window.addEventListener('scroll', hideCardPop, { passive: true });
 
   // Cards keep a fixed 2:3 shape; long rules text shrinks (down to 9px) instead of stretching the card.
-  function fitCards(root = document) {
-    const shrink = (el, horizontal, min) => {              // start from the CSS (cqw) size, step down only if it overflows
+  // Text must stay inside its bar/panel: every card is measured and its title / type line / rules text shrunk until it fits.
+  // A card that is hidden (display:none) can't be measured, so each card is also watched by a ResizeObserver and re-fitted
+  // the moment it gets a size — covers panels revealed after the PIN, view switches, window resizes and late-arriving fonts.
+  function fitCard(card) {
+    if (!card.clientWidth) return;
+    const shrink = (el, horizontal, min) => {              // start from the CSS (cqw) size, step down only while it overflows
       el.style.fontSize = ''; let s = parseFloat(getComputedStyle(el).fontSize);
       const over = () => horizontal ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1;
       while (over() && s > min) { s -= 0.5; el.style.fontSize = s + 'px'; }
     };
+    const t = card.querySelector('.tcg-text, .mc-text'), h = card.querySelector('.tcg-title, .mc-title'), k = card.querySelector('.mc-type');
+    if (t) shrink(t, false, 6); if (h) shrink(h, true, 6); if (k) shrink(k, true, 5);
+    const l = card.querySelector('.mc-coll.l'), r = card.querySelector('.mc-coll.r');   // the two collector texts must not collide
+    if (l && r) {
+      l.style.fontSize = r.style.fontSize = ''; let s = parseFloat(getComputedStyle(l).fontSize);
+      const collide = () => l.getBoundingClientRect().right + 6 > r.getBoundingClientRect().left;
+      while (collide() && s > 4.5) { s -= 0.25; l.style.fontSize = r.style.fontSize = s + 'px'; }
+    }
+  }
+  const cardRO = window.ResizeObserver ? new ResizeObserver(entries => entries.forEach(e => { if (e.contentRect.width) fitCard(e.target); })) : null;
+  function fitCards(root = document) {
     requestAnimationFrame(() => root.querySelectorAll('.tcg:not(.full), .mc').forEach(card => {
-      const t = card.querySelector('.tcg-text, .mc-text'), h = card.querySelector('.tcg-title, .mc-title'), k = card.querySelector('.mc-type');
-      if (t) shrink(t, false, 7); if (h) shrink(h, true, 9); if (k) shrink(k, true, 7);
-      const l = card.querySelector('.mc-coll.l'), r = card.querySelector('.mc-coll.r');   // the two collector texts must not collide
-      if (l && r) {
-        l.style.fontSize = r.style.fontSize = ''; let s = parseFloat(getComputedStyle(l).fontSize);
-        const collide = () => l.getBoundingClientRect().right + 6 > r.getBoundingClientRect().left;
-        while (collide() && s > 4.5) { s -= 0.25; l.style.fontSize = r.style.fontSize = s + 'px'; }
-      }
+      if (cardRO && !card.dataset.ro) { card.dataset.ro = '1'; cardRO.observe(card); }
+      fitCard(card);
     }));
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
+  document.fonts?.addEventListener?.('loadingdone', () => fitCards());   // a font weight arriving after a card rendered changes its width — measure again
   window.__mgl = { tcgHTML, fitCards };                  // exposed for design previews in the browser console
   let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
   const views = ['board','standings','mine','cards','season','stag','admin'];
   function show(view) {
     views.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
+    fitCards($('view-' + view));                            // cards rendered while this view was hidden could not be measured then
     document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     location.hash = view;
     const r = recall();
