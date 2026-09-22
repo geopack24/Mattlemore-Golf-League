@@ -266,7 +266,7 @@
   .sealed-txt small{font-family:"EB Garamond",serif;letter-spacing:0;color:var(--muted)} .sealed-txt em{font-size:12px;color:var(--amber);font-style:normal;letter-spacing:.12em;text-transform:uppercase}
   @keyframes sealedGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.18)}}
   .pack-history summary{cursor:pointer;color:var(--muted);font-size:14px} .pack-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 0;border-top:1px solid rgba(255,255,255,.07);flex-wrap:wrap}
-  #packOverlay{position:fixed;inset:0;z-index:100000;background:radial-gradient(ellipse at 50% 40%,rgba(40,24,70,.985),rgba(4,6,10,.995) 70%);display:flex;align-items:flex-start;justify-content:center;overflow:auto;animation:fadeIn .3s}
+  #packOverlay{position:fixed;inset:0;z-index:100000;background:radial-gradient(ellipse at 50% 40%,#28184a,#04060a 70%);display:flex;align-items:flex-start;justify-content:center;overflow:auto;animation:fadeIn .3s}
   @keyframes fadeIn{from{opacity:0}to{opacity:1}}
   .po-stage{position:relative;width:min(1100px,100vw);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px 16px;box-sizing:border-box}
   .po-title{font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;color:#f4ecd9;text-shadow:0 2px 8px #000;font-size:clamp(14px,2.2vw,20px)}
@@ -676,7 +676,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-09';
+  const BUILD = '2026-09-22-10';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
