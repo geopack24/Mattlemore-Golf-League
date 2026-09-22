@@ -55,7 +55,10 @@ Deno.serve(async (req) => {
     if (e2) return new Response("live_scores: " + e2.message, { status: 500 });
 
     let filled: unknown = null;
-    if (status === "STATUS_FINAL") { const { data: n } = await sb.rpc("_autofill_winnings", { p_tournament_id: t.id }); filled = n; }
+    if (status === "STATUS_FINAL") {
+      const { data: n } = await sb.rpc("_autofill_winnings", { p_tournament_id: t.id }); filled = n;
+      await sb.rpc("_award_packs", { p_tournament_id: t.id });     // booster packs for everyone (no-op if already awarded)
+    }
     out.push({ event: ev.name, matched: t.name, tournament_id: t.id, players: field.length, status, filled });
   }
   return Response.json(out);

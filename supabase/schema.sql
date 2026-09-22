@@ -108,6 +108,19 @@ create table if not exists live_scores (          -- ESPN leaderboard snapshot p
 alter table picks add column if not exists winnings_source text;    -- 'auto' (from live scores) or 'manual' (commissioner typed it)
 alter table card_library add column if not exists exempt_limit boolean not null default false;   -- card text exempts it from the 3-cards-per-tournament cap
 alter table cards        add column if not exists exempt_limit boolean not null default false;
+-- Tees (Sep 22 2026): every owner has 3 tees per tournament; a card costs 0–3 tees to play (RULES.md)
+alter table card_library add column if not exists cost int not null default 0 check (cost between 0 and 3);
+alter table cards        add column if not exists cost int not null default 0 check (cost between 0 and 3);
+-- Booster packs (Sep 22 2026): one pack of 5 random library cards per owner at the end of every tournament
+create table if not exists packs (
+  id            serial primary key,
+  tournament_id int not null references tournaments(id) on delete cascade,
+  owner_id      int not null references owners(id) on delete cascade,
+  opened_at     timestamptz not null default now(),
+  unique (tournament_id, owner_id)
+);
+alter table packs enable row level security;
+alter table cards add column if not exists pack_id int references packs(id) on delete set null;   -- set when the card came out of a pack
 
 create table if not exists champions (           -- The White Stag Club: one league champion per season
   season int primary key,
@@ -370,6 +383,7 @@ drop function if exists admin_deal_card(text, text, text, text, text, jsonb, tex
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text);
+drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean);
 drop function if exists admin_list_cards(text);
 drop function if exists revealed_card(text);
 create or replace function tournament_board(p_tournament_id int)
@@ -530,11 +544,91 @@ begin
                        timeout_milliseconds := 30000);
 end $$;
 
+-- ---------- Booster packs (RULES.md) -------------------------------------------
+-- Slot odds: cards 1–3 common 80% / rare 20%; card 4 common 50 / rare 40 / legendary 10; card 5 rare 70 / legendary 25 / mythic 5.
+create or replace function _pack_tier(p_slot int) returns text language plpgsql volatile as $$
+declare r numeric := random();
+begin
+  if p_slot <= 3 then return case when r < 0.20 then 'rare' else 'common' end;
+  elsif p_slot = 4 then return case when r < 0.10 then 'legendary' when r < 0.50 then 'rare' else 'common' end;
+  else return case when r < 0.05 then 'mythic' when r < 0.30 then 'legendary' else 'rare' end;
+  end if;
+end $$;
+
+-- A random active library design of the given tier; if that pool is empty, step down a tier (then up) so a pack is never short.
+create or replace function _pick_library_card(p_tier text) returns card_library language plpgsql volatile as $$
+declare l card_library; tiers text[] := array['mythic','legendary','rare','common']; i int; t text;
+begin
+  i := coalesce(array_position(tiers, p_tier), 4);
+  foreach t in array (tiers[i:4] || tiers[1:i-1]) loop
+    select * into l from card_library cl where not cl.retired and cl.tier = t order by random() limit 1;
+    if l.id is not null then return l; end if;
+  end loop;
+  return null;
+end $$;
+
+create or replace function _packs_message(p_tournament_id int) returns text
+language sql stable security definer set search_path = public, extensions as $$
+  select '📦 **Booster packs** for the **' || t.name || '** are open! Check My Cards.' || E'\n' ||
+         coalesce((select string_agg('• **' || o.name || '** pulled ' || pulls, E'\n' order by o.name)
+                     from (select pk.owner_id,
+                                  string_agg(cnt || ' ' || tier, ' · ' order by array_position(array['common','rare','legendary','mythic'], tier)) as pulls
+                             from (select pk2.owner_id, c.tier, count(*) as cnt
+                                     from packs pk2 join cards c on c.pack_id = pk2.id
+                                    where pk2.tournament_id = t.id group by pk2.owner_id, c.tier) x
+                             join packs pk on pk.owner_id = x.owner_id and pk.tournament_id = t.id
+                            group by pk.owner_id) p join owners o on o.id = p.owner_id), '')
+    from tournaments t where t.id = p_tournament_id;
+$$;
+
+-- Give every active owner one 5-card pack for the tournament (once; safe to call again).
+create or replace function _award_packs(p_tournament_id int) returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare o record; pid int; n int := 0; s int; l card_library; t tournaments%rowtype;
+begin
+  select * into t from tournaments tt where tt.id = p_tournament_id;
+  if t.id is null then return 0; end if;
+  for o in select id, name from owners where active order by name loop
+    if exists (select 1 from packs pk where pk.tournament_id = p_tournament_id and pk.owner_id = o.id) then continue; end if;
+    insert into packs(tournament_id, owner_id) values (p_tournament_id, o.id) returning id into pid;
+    for s in 1..5 loop
+      l := _pick_library_card(_pack_tier(s));
+      if l.id is null then continue; end if;      -- empty library: pack stays empty rather than failing
+      insert into cards(owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit, cost, pack_id)
+      values (o.id, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card, l.tier, l.exempt_limit, l.cost, pid);
+    end loop;
+    n := n + 1;
+  end loop;
+  if n > 0 then perform _discord_text(_packs_message(p_tournament_id)); end if;
+  return n;
+end $$;
+
+-- pg_cron, hourly: packs for every tournament that has ended (midnight ET after day 4) in the last two weeks and has none yet.
+create or replace function award_due_packs() returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare r record; n int := 0;
+begin
+  for r in select tt.id from tournaments tt
+            where _tournament_end(tt.start_date) <= now() and tt.start_date >= current_date - 14
+              and not exists (select 1 from packs pk where pk.tournament_id = tt.id)
+            order by tt.start_date loop
+    n := n + _award_packs(r.id);
+  end loop;
+  return n;
+end $$;
+
+create or replace function admin_award_packs(p_admin_pin text, p_tournament_id int) returns int
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  return _award_packs(p_tournament_id);
+end $$;
+
 -- Cards in play for a tournament — revealed at lock time, like picks.
 create or replace function tournament_cards(p_tournament_id int)
-returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text, full_card boolean, tier text)
+returns table (id int, owner text, name text, kind text, effect text, params jsonb, rules text, flavor text, image text, target text, full_card boolean, tier text, cost int)
 language sql stable security definer set search_path = public, extensions as $$
-  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name, c.full_card, c.tier
+  select c.id, o.name, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, tg.name, c.full_card, c.tier, c.cost
     from cards c
     join owners o on o.id = c.owner_id
     join tournaments t on t.id = c.tournament_id
@@ -604,16 +698,20 @@ end $$;
 
 create or replace function my_cards(p_owner text, p_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean, tier text, exempt_limit boolean)
+               status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean, tier text, exempt_limit boolean,
+               cost int, pack_id int, pack_tournament text)
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
     select c.id, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.status,
-           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card, c.tier, c.exempt_limit
+           c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card, c.tier, c.exempt_limit,
+           c.cost, c.pack_id, pt.name
       from cards c
       left join tournaments t on t.id = c.tournament_id
       left join owners tg on tg.id = c.target_owner_id
+      left join packs pk on pk.id = c.pack_id
+      left join tournaments pt on pt.id = pk.tournament_id
      where c.owner_id = v_id and c.status <> 'revoked'
      order by (c.status = 'held') desc, c.dealt_at, c.id;
 end $$;
@@ -671,6 +769,7 @@ declare
   v_target int;
   v_live   boolean;      -- played after lock (Instant)
   v_n      int;
+  v_used   int;          -- tees already spent this tournament
 begin
   select * into v_c from cards cd where cd.id = p_card_id and cd.owner_id = v_owner;
   if v_c.id is null then raise exception 'That card is not in your hand'; end if;
@@ -706,6 +805,13 @@ begin
     select count(*) into v_n from cards cd
      where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played' and not cd.exempt_limit;
     if v_n >= 3 then raise exception 'Three cards is the limit for one tournament (the % already has % of yours)', v_t.name, v_n; end if;
+  end if;
+
+  -- 3 tees per owner per tournament; each card costs cards.cost tees
+  select coalesce(sum(cd.cost), 0) into v_used from cards cd
+   where cd.owner_id = v_owner and cd.tournament_id = p_tournament_id and cd.status = 'played';
+  if v_used + v_c.cost > 3 then
+    raise exception 'Not enough tees: % costs % and you have % of 3 left for the %', v_c.name, v_c.cost, 3 - v_used, v_t.name;
   end if;
 
   update cards set status = 'played', tournament_id = p_tournament_id, target_owner_id = v_target, played_at = now()
@@ -900,7 +1006,7 @@ end $$;
 
 create or replace function admin_list_library(p_admin_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text, exempt_limit boolean)
+               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text, exempt_limit boolean, cost int)
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
@@ -908,7 +1014,7 @@ begin
     select l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.retired,
            (select count(*) from cards c where c.library_id = l.id and c.status <> 'revoked')::int,
            (select count(*) from cards c where c.library_id = l.id and c.status = 'held')::int,
-           l.created_at, l.full_card, l.tier, l.exempt_limit
+           l.created_at, l.full_card, l.tier, l.exempt_limit, l.cost
       from card_library l
      order by l.retired, lower(l.name);
 end $$;
@@ -918,24 +1024,25 @@ create or replace function admin_save_library_card(p_admin_pin text, p_id int, p
                                                    p_params jsonb default '{}', p_rules text default null,
                                                    p_flavor text default null, p_image text default null,
                                                    p_full_card boolean default null, p_tier text default null,
-                                                   p_exempt_limit boolean default null)
+                                                   p_exempt_limit boolean default null, p_cost int default null)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int;
 begin
   perform _check_admin(p_admin_pin);
   if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
+  if p_cost is not null and p_cost not between 0 and 3 then raise exception 'A card costs 0 to 3 tees'; end if;
   if p_id is null then
-    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit)
+    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit, cost)
     values (trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect, coalesce(p_params, '{}'),
             nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false), coalesce(p_tier, 'common'),
-            coalesce(p_exempt_limit, false))
+            coalesce(p_exempt_limit, false), coalesce(p_cost, 0))
     returning id into v_id;
   else
     update card_library
        set name = trim(p_name), kind = coalesce(nullif(trim(p_kind), ''), 'Enchantment'), effect = p_effect,
            params = coalesce(p_params, '{}'), rules = nullif(trim(p_rules), ''), flavor = nullif(trim(p_flavor), ''),
            image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), tier = coalesce(p_tier, tier),
-           exempt_limit = coalesce(p_exempt_limit, exempt_limit), updated_at = now()
+           exempt_limit = coalesce(p_exempt_limit, exempt_limit), cost = coalesce(p_cost, cost), updated_at = now()
      where id = p_id returning id into v_id;
     if v_id is null then raise exception 'No such library card'; end if;
   end if;
@@ -960,8 +1067,8 @@ begin
   if l.id is null then raise exception 'No such library card'; end if;
   select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
   if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
-  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit)
-  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card, l.tier, l.exempt_limit)
+  insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit, cost)
+  values (v_owner, l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.full_card, l.tier, l.exempt_limit, l.cost)
   returning id into v_id;
   return v_id;
 end $$;
@@ -1154,6 +1261,8 @@ begin
   perform cron.schedule('announce-locks', '*/5 * * * *', 'select public.announce_locked()');
   if exists (select 1 from cron.job where jobname = 'sync-scores') then perform cron.unschedule('sync-scores'); end if;
   perform cron.schedule('sync-scores', '*/10 * * * *', 'select public.sync_scores()');
+  if exists (select 1 from cron.job where jobname = 'award-packs') then perform cron.unschedule('award-packs'); end if;
+  perform cron.schedule('award-packs', '17 * * * *', 'select public.award_due_packs()');
 exception when others then raise notice 'pg_cron not available: %', sqlerrm;
 end $$;
 
@@ -1164,15 +1273,16 @@ revoke execute on function _check_admin(text) from public, anon, authenticated;
 revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(int) from public, anon, authenticated;
 drop function if exists _discord_post(text);
 revoke execute on function _discord_message(int), _discord_cards(int), _discord_post(int), announce_locked() from public, anon, authenticated;
-revoke execute on function _autofill_winnings(int), sync_scores(), _discord_text(text) from public, anon, authenticated;
-grant execute on function _discord_message(int), _discord_cards(int), _autofill_winnings(int) to service_role;   -- the edge functions
-grant all on live_scores to service_role;
+revoke execute on function _autofill_winnings(int), sync_scores(), _discord_text(text), _award_packs(int), award_due_packs(), _packs_message(int),
+                           _pack_tier(int), _pick_library_card(text) from public, anon, authenticated;
+grant execute on function _discord_message(int), _discord_cards(int), _autofill_winnings(int), _award_packs(int) to service_role;   -- the edge functions
+grant all on live_scores, packs to service_role;
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
   revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
-  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int), admin_award_packs(text, int),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   admin_announce(text, int), admin_set_discord(text, text), admin_discord_status(text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
