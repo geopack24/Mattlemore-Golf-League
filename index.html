@@ -594,7 +594,7 @@
       <div id="dcMsg"></div>
       <div class="grid2" style="margin-top:14px">
         <div><div class="hint" style="margin:0 0 8px">Preview of the form above (not a saved card)</div><div class="hand mini" id="dcPreview"></div>
-          <div class="row" id="dcArtTools" style="margin-top:8px;align-items:center;gap:10px"><span class="hint" style="margin:0">Drag the art to position it · scroll or slide to zoom</span><input type="range" id="dcZoom" min="1" max="4" step="0.01" value="1" style="width:150px"><button class="btn ghost" id="dcArtReset" style="padding:6px 10px">Reset art</button></div></div>
+          <div class="row" id="dcArtTools" style="margin-top:8px;align-items:center;gap:10px"><span class="hint" style="margin:0">Drag the art to position it · scroll or slide to zoom (below 1× the art sits inside the window on a dark backing)</span><input type="range" id="dcZoom" min="0.3" max="4" step="0.01" value="1" style="width:150px"><button class="btn ghost" id="dcArtReset" style="padding:6px 10px">Reset art</button></div></div>
         <div><div class="hint" style="margin:0 0 8px">All cards dealt</div>
           <div class="scroll"><table id="dcTable"><thead><tr><th>Owner</th><th>Card</th><th>Status</th><th>Week</th><th></th></tr></thead><tbody></tbody></table></div></div>
       </div>
@@ -679,7 +679,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-11';
+  const BUILD = '2026-09-22-13';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -740,7 +740,21 @@
   const isVideo = src => /^data:video\//.test(src || '') || /\.(mp4|webm)(\?|$)/i.test(src || '');
   // params._art = {x, y, s}: focal point (fractions) + zoom, set by dragging/zooming in the designer. Still images get the
   // crop baked into the stored JPEG; videos keep _art and are positioned live.
-  const artStyle = a => a ? ` style="object-position:${(a.x * 100).toFixed(2)}% ${(a.y * 100).toFixed(2)}%;transform:scale(${(+a.s).toFixed(3)});transform-origin:${(a.x * 100).toFixed(2)}% ${(a.y * 100).toFixed(2)}%"` : '';
+  const ART_ASPECT = 85.5 / 67.05;                          // the art window (85.5% of the card's width by 44.7% of its height)
+  // Geometry shared by the preview, the live video placement and the baked JPEG: cover-fit the media in the window, scale it by
+  // s about the focal point (x, y), so its left/top edge sits at x·(window − media). Percentages of the window.
+  function artPlace(a, iw, ih) {
+    const rw = iw / ih; let wp, hp;
+    if (rw > ART_ASPECT) { hp = 100 * a.s; wp = hp * rw / ART_ASPECT; } else { wp = 100 * a.s; hp = wp * ART_ASPECT / rw; }
+    return `position:absolute;left:${(a.x * (100 - wp)).toFixed(3)}%;top:${(a.y * (100 - hp)).toFixed(3)}%;width:${wp.toFixed(3)}%;height:${hp.toFixed(3)}%;max-width:none;object-fit:fill`;
+  }
+  const artStyle = a => a ? ` data-art="${esc(JSON.stringify(a))}"` : '';   // placed by placeArt() once the media knows its own size
+  function placeArt(el) {
+    const a = el.dataset.art && JSON.parse(el.dataset.art), iw = el.naturalWidth || el.videoWidth, ih = el.naturalHeight || el.videoHeight;
+    if (a && iw && ih) el.style.cssText = artPlace(a, iw, ih);
+  }
+  document.addEventListener('load', e => { if (e.target.matches?.('.mc-art>img[data-art]')) placeArt(e.target); }, true);
+  document.addEventListener('loadedmetadata', e => { if (e.target.matches?.('.mc-art>video[data-art]')) placeArt(e.target); }, true);
   const artEl = (src, cls, alt, art) => {
     const inner = isVideo(src) ? `<video src="${esc(src)}"${artStyle(art)} autoplay muted loop playsinline disablepictureinpicture></video>`
                                : `<img src="${esc(src)}"${artStyle(art)} alt="${esc(alt || '')}">`;
@@ -1250,14 +1264,12 @@
     return dcImageData;
   }
   const ART_W = 640, ART_H = 502;                          // baked art size, the art window's 85.5 : 67 aspect
-  function artRect(iw, ih, Ww, Wh) {                       // source rect of the image that shows in a Ww×Wh window for the current dcArt
-    const k = Math.max(Ww / iw, Wh / ih) * dcArt.s, sw = Ww / k, sh = Wh / k;
-    return { sx: iw * dcArt.x - sw * dcArt.x, sy: ih * dcArt.y - sh * dcArt.y, sw, sh };
-  }
-  function bakeArt() {
-    const cv = document.createElement('canvas'); cv.width = ART_W; cv.height = ART_H;
-    const r = artRect(dcArtImg.naturalWidth, dcArtImg.naturalHeight, ART_W, ART_H);
-    cv.getContext('2d').drawImage(dcArtImg, r.sx, r.sy, r.sw, r.sh, 0, 0, ART_W, ART_H);
+  function bakeArt() {                                     // same placement math as the CSS preview, painted onto the art window's dark backing
+    const cv = document.createElement('canvas'); cv.width = ART_W; cv.height = ART_H; const g = cv.getContext('2d');
+    const bg = g.createRadialGradient(ART_W / 2, ART_H * .4, 0, ART_W / 2, ART_H * .4, ART_W * .75); bg.addColorStop(0, '#2c2c2c'); bg.addColorStop(1, '#0b0b0b');
+    g.fillStyle = bg; g.fillRect(0, 0, ART_W, ART_H);
+    const iw = dcArtImg.naturalWidth, ih = dcArtImg.naturalHeight, k = Math.max(ART_W / iw, ART_H / ih) * dcArt.s, D = iw * k, H = ih * k;
+    g.drawImage(dcArtImg, dcArt.x * (ART_W - D), dcArt.y * (ART_H - H), D, H);
     return cv.toDataURL('image/jpeg', 0.86);
   }
   function loadArtImg(src) {                               // remember the source image so a saved card can be re-cropped later
@@ -1266,7 +1278,9 @@
   }
   function applyArt() {                                    // live update of the preview without re-rendering the whole card
     const el = document.querySelector('#dcPreview .mc-art>img, #dcPreview .mc-art>video'); if (!el) return;
-    el.style.objectPosition = `${dcArt.x * 100}% ${dcArt.y * 100}%`; el.style.transform = `scale(${dcArt.s})`; el.style.transformOrigin = `${dcArt.x * 100}% ${dcArt.y * 100}%`;
+    el.dataset.art = JSON.stringify(dcArt);
+    const iw = dcArtDims?.w || el.naturalWidth || el.videoWidth, ih = dcArtDims?.h || el.naturalHeight || el.videoHeight;
+    if (iw && ih) el.style.cssText = artPlace(dcArt, iw, ih);
     $('dcZoom').value = dcArt.s;
   }
   function bindArtEditor() {
@@ -1279,13 +1293,14 @@
       if (!drag) return;
       const iw = dcArtDims?.w || media.naturalWidth || media.videoWidth, ih = dcArtDims?.h || media.naturalHeight || media.videoHeight; if (!iw || !ih) return;
       const Ww = box.clientWidth, Wh = box.clientHeight, k = Math.max(Ww / iw, Wh / ih) * dcArt.s, D = iw * k, H = ih * k;
-      // the image's visible offset is -(D-Ww)*x, so a drag of dx pixels moves the focal point by -dx/(D-Ww)
-      if (D > Ww + .5) dcArt.x = Math.min(1, Math.max(0, drag.ax - (e.clientX - drag.x) / (D - Ww)));
-      if (H > Wh + .5) dcArt.y = Math.min(1, Math.max(0, drag.ay - (e.clientY - drag.y) / (H - Wh)));
+      // with object-position x and scale about that same point, the image's left edge sits at x*(Ww-D): larger than the
+      // window (D>Ww) it is cropped, smaller (D<Ww) it floats on the backing — either way a drag of dx moves x by dx/(Ww-D)
+      if (Math.abs(Ww - D) > .5) dcArt.x = Math.min(1, Math.max(0, drag.ax + (e.clientX - drag.x) / (Ww - D)));
+      if (Math.abs(Wh - H) > .5) dcArt.y = Math.min(1, Math.max(0, drag.ay + (e.clientY - drag.y) / (Wh - H)));
       dcArtDirty = true; applyArt();
     });
     const end = () => { drag = null; }; box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
-    box.addEventListener('wheel', e => { e.preventDefault(); dcArt.s = Math.min(4, Math.max(1, dcArt.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08))); dcArtDirty = true; applyArt(); }, { passive: false });
+    box.addEventListener('wheel', e => { e.preventDefault(); dcArt.s = Math.min(4, Math.max(.3, dcArt.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08))); dcArtDirty = true; applyArt(); }, { passive: false });
   }
   $('dcZoom').addEventListener('input', () => { dcArt.s = Number($('dcZoom').value); dcArtDirty = true; applyArt(); });
   $('dcArtReset').addEventListener('click', () => { dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; applyArt(); });
