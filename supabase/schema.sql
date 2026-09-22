@@ -120,6 +120,7 @@ create table if not exists packs (
   unique (tournament_id, owner_id)
 );
 alter table packs enable row level security;
+alter table packs add column if not exists revealed_at timestamptz;   -- when the owner opened it on the site (cards stay hidden in My Cards until then)
 alter table cards add column if not exists pack_id int references packs(id) on delete set null;   -- set when the card came out of a pack
 
 create table if not exists champions (           -- The White Stag Club: one league champion per season
@@ -617,6 +618,14 @@ begin
   return n;
 end $$;
 
+-- The owner has watched the pack-opening on the site; the cards now show in their hand.
+create or replace function open_pack(p_owner text, p_pin text, p_pack_id int) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare v_owner int := _owner_id(p_owner, p_pin);
+begin
+  update packs set revealed_at = now() where id = p_pack_id and owner_id = v_owner and revealed_at is null;
+end $$;
+
 create or replace function admin_award_packs(p_admin_pin text, p_tournament_id int) returns int
 language plpgsql security definer set search_path = public, extensions as $$
 begin
@@ -699,14 +708,14 @@ end $$;
 create or replace function my_cards(p_owner text, p_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
                status text, tournament_id int, tournament text, locked boolean, target text, dealt_at timestamptz, full_card boolean, tier text, exempt_limit boolean,
-               cost int, pack_id int, pack_tournament text)
+               cost int, pack_id int, pack_tournament text, pack_revealed boolean, pack_awarded timestamptz)
 language plpgsql stable security definer set search_path = public, extensions as $$
 declare v_id int := _owner_id(p_owner, p_pin);
 begin
   return query
     select c.id, c.name, c.kind, c.effect, c.params, c.rules, c.flavor, c.image, c.status,
            c.tournament_id, t.name, (t.id is not null and now() >= t.lock_at), tg.name, c.dealt_at, c.full_card, c.tier, c.exempt_limit,
-           c.cost, c.pack_id, pt.name
+           c.cost, c.pack_id, pt.name, (pk.revealed_at is not null), pk.opened_at
       from cards c
       left join tournaments t on t.id = c.tournament_id
       left join owners tg on tg.id = c.target_owner_id
@@ -1279,7 +1288,7 @@ grant execute on function _discord_message(int), _discord_cards(int), _autofill_
 grant all on live_scores, packs to service_role;
 grant execute on function
   current_season(), list_owners(), list_tournaments(int), list_golfers(), tournament_board(int), tournament_cards(int),
-  revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int),
+  revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int), open_pack(text, text, int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
   admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int), admin_award_packs(text, int),

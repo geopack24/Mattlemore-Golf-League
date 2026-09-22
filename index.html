@@ -230,10 +230,11 @@
   /* the type bar is a blade: full-height dark interior x 11.5–46%, tapering to a point by ~57% — the box stops where the taper starts (George, Sep 22) */
   .mc .mc-type{left:12.5%;top:54.8%;width:42.5%;height:4.6%;text-transform:uppercase;font-size:3.9cqw;letter-spacing:.4cqw;padding:0 2cqw 0 2cqw}
   .zones .mc>*:not(.mc-frame):not(.holo){outline:1px dashed rgba(0,255,255,.9);outline-offset:-1px;background-color:rgba(0,255,255,.12)}
-  /* tee cost pips sit on the tapering blade of the type bar (x 57–76%), one golf tee per tee of cost */
-  .mc .mc-cost{left:57.5%;top:54.8%;width:19%;height:4.6%;display:flex;align-items:center;justify-content:flex-start;gap:.7cqw;padding-left:1cqw}
-  .mc .mc-cost svg{width:2.4cqw;height:auto;fill:var(--coll);filter:drop-shadow(0 .25cqw .35cqw rgba(0,0,0,.95))}
-  .mc.tier-legendary .mc-cost svg,.mc.tier-mythic .mc-cost svg{fill:#f6d98a}
+  /* tee cost: a big numeral over the crown emblem in the title bar's top-right circle (circle ≈ x 80.5–95%, y 3.6–13.2%) — George, Sep 22 */
+  .mc .mc-cost{left:80.5%;top:3.6%;width:14.5%;height:9.6%;display:flex;align-items:center;justify-content:center;font-family:var(--display);font-weight:900;font-size:7.2cqw;line-height:1;
+    color:#fff;-webkit-text-stroke:.28cqw rgba(0,0,0,.95);paint-order:stroke fill;text-shadow:0 .3cqw .6cqw rgba(0,0,0,.95),0 0 1.6cqw rgba(0,0,0,.9);
+    background:radial-gradient(circle at 50% 50%,rgba(0,0,0,.78) 0 52%,rgba(0,0,0,0) 60%)}   /* dark disc so the numeral reads over the painted crown */
+  .mc.tier-legendary .mc-cost,.mc.tier-mythic .mc-cost{color:#ffe08a}
   .mc .mc-text{left:11.2%;top:62.4%;width:79%;height:25.6%;overflow:hidden;color:var(--ink);font-size:4.6cqw;line-height:1.22;font-weight:500;padding:.4cqw .8cqw;white-space:normal;overflow-wrap:anywhere}
   .mc .mc-text p{margin:0}
   .mc .mc-div{display:flex;align-items:center;gap:1.2cqw;margin:1.6cqw 0;color:var(--ts)}
@@ -254,6 +255,57 @@
   .mc.tilting .holo{animation:none}
   .mc.tier-mythic .holo{opacity:.9;animation-duration:5s}
   @keyframes holoSheen{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
+  /* ---- booster packs: sealed pack buttons, history, and the full-screen opening ---- */
+  .sealed-row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
+  .sealed{display:flex;align-items:center;gap:14px;padding:10px 16px 10px 10px;border:1px solid rgba(242,185,90,.45);border-radius:12px;cursor:pointer;color:var(--text);text-align:left;font:inherit;
+    background:linear-gradient(135deg,#2a1a4a,#0f2a2c 60%,#1a1230);box-shadow:0 0 22px rgba(120,80,220,.35),inset 0 0 30px rgba(0,0,0,.5);animation:sealedGlow 2.4s ease-in-out infinite}
+  .sealed:hover{transform:translateY(-2px);box-shadow:0 0 34px rgba(160,110,255,.55),inset 0 0 30px rgba(0,0,0,.5)}
+  .sealed-art{width:54px;height:76px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:radial-gradient(circle at 50% 35%,#4a2d86,#120c22 75%);display:flex;align-items:center;justify-content:center;flex:none}
+  .sealed-art .crest{width:70%;height:70%}
+  .sealed-txt{display:flex;flex-direction:column;gap:2px;font-family:var(--display);letter-spacing:.06em}
+  .sealed-txt small{font-family:"EB Garamond",serif;letter-spacing:0;color:var(--muted)} .sealed-txt em{font-size:12px;color:var(--amber);font-style:normal;letter-spacing:.12em;text-transform:uppercase}
+  @keyframes sealedGlow{0%,100%{filter:brightness(1)}50%{filter:brightness(1.18)}}
+  .pack-history summary{cursor:pointer;color:var(--muted);font-size:14px} .pack-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 0;border-top:1px solid rgba(255,255,255,.07);flex-wrap:wrap}
+  #packOverlay{position:fixed;inset:0;z-index:100000;background:radial-gradient(ellipse at 50% 40%,rgba(40,24,70,.985),rgba(4,6,10,.995) 70%);display:flex;align-items:flex-start;justify-content:center;overflow:auto;animation:fadeIn .3s}
+  @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+  .po-stage{position:relative;width:min(1100px,100vw);min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:24px 16px;box-sizing:border-box}
+  .po-title{font-family:var(--display);letter-spacing:.14em;text-transform:uppercase;color:#f4ecd9;text-shadow:0 2px 8px #000;font-size:clamp(14px,2.2vw,20px)}
+  .po-pack{position:relative;width:min(260px,60vw);aspect-ratio:2/3;border-radius:14px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;overflow:hidden;
+    background:linear-gradient(160deg,#5a2ea6 0%,#1d1440 40%,#0e3a3c 100%);border:2px solid rgba(255,220,140,.55);box-shadow:0 0 60px rgba(150,100,255,.45),0 30px 60px rgba(0,0,0,.8);animation:packIdle 2.6s ease-in-out infinite}
+  .po-pack .crest{width:55%;height:40%;filter:drop-shadow(0 0 18px rgba(255,255,255,.35))}
+  .po-pack-txt{font-family:var(--display);font-weight:900;letter-spacing:.18em;text-align:center;color:#f6d98a;text-shadow:0 2px 6px #000;font-size:clamp(13px,2vw,18px);line-height:1.35}
+  .po-hint{position:absolute;bottom:14px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+  .po-foil{position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.35) 48%,rgba(120,255,220,.25) 52%,transparent 65%);animation:foil 3s linear infinite;pointer-events:none}
+  @keyframes foil{from{transform:translateX(-40%) rotate(8deg)}to{transform:translateX(40%) rotate(8deg)}}
+  @keyframes packIdle{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
+  .po-pack.opening{animation:packOpen 1.15s cubic-bezier(.3,.7,.4,1) forwards}
+  @keyframes packOpen{0%{transform:rotate(0)}15%{transform:rotate(-6deg) scale(1.03)}30%{transform:rotate(6deg) scale(1.05)}45%{transform:rotate(-5deg) scale(1.08)}60%{transform:rotate(3deg) scale(1.12);filter:brightness(1.6)}
+    75%{transform:scale(1.35);filter:brightness(3);opacity:1}100%{transform:scale(2.4);filter:brightness(6);opacity:0}}
+  .po-cards{display:flex;justify-content:center;align-items:flex-end;gap:clamp(6px,1.4vw,18px);flex-wrap:wrap;perspective:1400px;width:100%}
+  .po-slot{width:clamp(110px,15vw,200px);animation:dealIn .6s cubic-bezier(.2,.8,.3,1) both;animation-delay:calc(var(--i) * .12s);transform-origin:50% 120%}
+  @media(min-width:900px){.po-slot{transform:rotate(calc((var(--i) - 2) * 5deg)) translateY(calc((var(--i) - 2) * (var(--i) - 2) * 9px))}
+    .po-slot{animation-name:dealInArc}}
+  @keyframes dealIn{from{opacity:0;transform:translateY(-140px) scale(.6)}to{opacity:1;transform:none}}
+  @keyframes dealInArc{from{opacity:0;transform:translateY(-140px) scale(.6)}to{opacity:1;transform:rotate(calc((var(--i) - 2) * 5deg)) translateY(calc((var(--i) - 2) * (var(--i) - 2) * 9px))}}
+  .po-card{aspect-ratio:2/3;cursor:pointer;perspective:1200px}
+  .po-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .75s cubic-bezier(.4,.2,.2,1)}
+  .po-card.flipped .po-inner{transform:rotateY(180deg)}
+  .po-back,.po-front{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:10px}
+  .po-back{background:radial-gradient(circle at 50% 38%,#3b2670,#0e0a1c 78%);border:2px solid rgba(255,220,140,.5);box-shadow:inset 0 0 40px rgba(0,0,0,.7),0 14px 30px rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.03) 0 6px,transparent 6px 12px),radial-gradient(circle at 50% 38%,#3b2670,#0e0a1c 78%)}
+  .po-back .crest{width:60%;height:45%;opacity:.9} .po-back span{font-family:var(--display);font-weight:900;letter-spacing:.3em;color:#f6d98a;text-shadow:0 1px 4px #000}
+  .po-card:not(.flipped):hover .po-inner{transform:rotateY(-12deg) translateY(-6px)}
+  .po-front{transform:rotateY(180deg)} .po-front .cardwrap,.po-front .mc{width:100%}
+  .po-card.flipped.tier-rare .po-front{filter:drop-shadow(0 0 18px rgba(80,140,255,.8))}
+  .po-card.flipped.tier-legendary .po-front{filter:drop-shadow(0 0 26px rgba(170,90,255,.95));animation:revealPulse 1.2s ease-out}
+  .po-card.flipped.tier-mythic .po-front{filter:drop-shadow(0 0 34px rgba(255,140,40,1));animation:revealPulse 1.4s ease-out}
+  @keyframes revealPulse{0%{transform:rotateY(180deg) scale(1)}35%{transform:rotateY(180deg) scale(1.12)}100%{transform:rotateY(180deg) scale(1)}}
+  .po-flash{position:fixed;inset:0;pointer-events:none;opacity:0}
+  .po-flash.legendary{animation:flash .9s ease-out;background:radial-gradient(circle at 50% 50%,rgba(190,120,255,.7),transparent 60%)}
+  .po-flash.mythic{animation:flash .9s ease-out;background:radial-gradient(circle at 50% 50%,rgba(255,170,60,.85),transparent 62%)}
+  @keyframes flash{0%{opacity:0}15%{opacity:1}100%{opacity:0}}
+  .po-bar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center;color:#f4ecd9;font-family:var(--display);letter-spacing:.08em}
+  .po-close{position:absolute;top:14px;right:16px;background:none;border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:50%;width:38px;height:38px;cursor:pointer;font-size:16px}
   .cardwrap.tilt{perspective:900px}
   .cardwrap.tilt .mc{transition:transform .15s ease-out;will-change:transform}
   .cardwrap{display:flex;flex-direction:column}
@@ -437,7 +489,8 @@
         <div><button class="btn" id="cardsLoad">Show my hand</button></div>
       </div>
       <div id="cardsMsg"></div>
-      <div id="packNote" class="hidden" style="margin-top:10px"></div>
+      <div id="packNote" class="hidden" style="margin-top:12px"></div>
+      <div id="packOverlay" class="hidden"></div>
     </div>
     <div class="hand" id="hand"></div>
   </section>
@@ -623,7 +676,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-06';
+  const BUILD = '2026-09-22-09';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -679,7 +732,7 @@
   const TIERS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
   const tierTag = t => `<span class="tag tier-${TIERS[t] ? t : 'common'}">${TIERS[t] || 'Common'}</span>`;
   const costTag = n => { n = Number(n) || 0; return `<span class="tag ${n ? 'lock' : 'open'}" title="tees needed to play it (3 per tournament)">${n ? n + (n === 1 ? ' tee' : ' tees') : 'free'}</span>`; };
-  const costPips = n => { n = Number(n) || 0; return n ? `<div class="mc-cost" title="${n} tee${n === 1 ? '' : 's'}">${'<svg viewBox="0 0 24 40"><use href="#tee"/></svg>'.repeat(n)}</div>` : ''; };
+  const costPips = n => { n = Number(n) || 0; return `<div class="mc-cost" title="${n ? n + ' tee' + (n === 1 ? '' : 's') + ' to play' : 'free to play'}">${n}</div>`; };
   // Card art may be a still (JPEG/PNG data URL) or animated (MP4/WebM data URL): video plays muted on a loop, no controls.
   const isVideo = src => /^data:video\//.test(src || '') || /\.(mp4|webm)(\?|$)/i.test(src || '');
   const artEl = (src, cls, alt) => isVideo(src)
@@ -770,7 +823,7 @@
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
   document.fonts?.addEventListener?.('loadingdone', () => fitCards());   // a font weight arriving after a card rendered changes its width — measure again
-  window.__mgl = { tcgHTML, fitCards };                  // exposed for design previews in the browser console
+  window.__mgl = { tcgHTML, fitCards, openPackUI };      // exposed for design previews in the browser console
   if (/[?&]zones=1/.test(location.search)) document.documentElement.classList.add('zones');   // ?zones=1 outlines every text box on the cards (for tuning the frames)
   let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
@@ -964,17 +1017,19 @@
       // tees already spent per tournament (3 per tournament, RULES.md) — shown under each Play button for the selected week
       const teesUsed = {}; cards.filter(c => c.status === 'played' && c.tournament_id).forEach(c => teesUsed[c.tournament_id] = (teesUsed[c.tournament_id] || 0) + (Number(c.cost) || 0));
       $('hand').dataset.tees = JSON.stringify(teesUsed);
-      // latest booster pack
-      const packs = {}; cards.filter(c => c.pack_id).forEach(c => (packs[c.pack_id] = packs[c.pack_id] || { t: c.pack_tournament, cards: [] }).cards.push(c));
-      const latest = Object.keys(packs).map(Number).sort((a, b) => b - a)[0];
-      if (latest) {
-        const p = packs[latest], byTier = {}; p.cards.forEach(c => byTier[c.tier] = (byTier[c.tier] || 0) + 1);
-        $('packNote').innerHTML = `📦 <b>Booster pack</b> from the ${esc(p.t || 'last tournament')}: ${p.cards.length} cards — ${Object.keys(TIERS).filter(t => byTier[t]).map(t => `${byTier[t]} ${TIERS[t]}`).join(', ')}. Pack cards carry a <span class="tag open">pack</span> tag below.`;
-        $('packNote').classList.remove('hidden');
-      } else $('packNote').classList.add('hidden');
+      // booster packs: sealed ones are opened Hearthstone-style (their cards stay hidden from the hand until then); opened ones can be replayed
+      const packs = {}; cards.filter(c => c.pack_id).forEach(c => (packs[c.pack_id] = packs[c.pack_id] || { id: c.pack_id, t: c.pack_tournament, when: c.pack_awarded, revealed: !!c.pack_revealed, cards: [] }).cards.push(c));
+      const packList = Object.values(packs).sort((a, b) => b.id - a.id), sealed = packList.filter(p => !p.revealed), opened = packList.filter(p => p.revealed);
+      packUI.name = name; packUI.pin = pin; packUI.packs = packs;
+      $('packNote').innerHTML = (sealed.length ? `<div class="sealed-row">${sealed.map(p => `<button class="sealed" data-pack="${p.id}" title="Open this pack">
+          <span class="sealed-art"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg></span><span class="sealed-txt"><b>Booster pack</b><small>${esc(p.t || 'Tournament')} · ${p.cards.length} cards</small><em>Tap to open</em></span></button>`).join('')}</div>` : '') +
+        (opened.length ? `<details class="pack-history"><summary>Pack history · ${opened.length} opened</summary>${opened.map(p => { const byTier = {}; p.cards.forEach(c => byTier[c.tier] = (byTier[c.tier] || 0) + 1);
+          return `<div class="pack-row"><span>📦 ${esc(p.t || 'Tournament')} <small class="muted">${p.when ? fmtWhen(p.when) : ''}</small></span><span>${Object.keys(TIERS).filter(t => byTier[t]).map(t => `<span class="tag tier-${t}">${byTier[t]} ${TIERS[t]}</span>`).join(' ')}</span><button class="btn ghost replay" data-pack="${p.id}" style="padding:5px 10px">Replay</button></div>`; }).join('')}</details>` : '');
+      $('packNote').classList.toggle('hidden', !sealed.length && !opened.length);
+      const shown = cards.filter(c => !(c.pack_id && c.pack_revealed === false));
       // Instants may also be played into a tournament that is under way (server enforces the 8 PM day-3 cutoff and the response rule)
       const underway = tournaments.filter(t => t.locked && Date.now() < new Date(t.start_date + 'T00:00:00-04:00').getTime() + 4 * 864e5);
-      $('hand').innerHTML = cards.map(c => {
+      $('hand').innerHTML = shown.map(c => {
         const e = EFFECTS[c.effect] || EFFECTS.custom, instant = isInstant(c);
         const open = instant ? [...underway, ...upcoming] : upcoming;
         let foot;
@@ -998,6 +1053,54 @@
       fitCards($('hand')); $('hand').querySelectorAll('.cardwrap').forEach(updTees);
     } catch (e) { $('hand').innerHTML = ''; msg('cardsMsg', e.message, 'err'); }
   }
+  // ---- pack opening (Hearthstone-style): sealed pack → tap → burst → five face-down cards → tap each to flip → add to hand ----
+  const packUI = { name: '', pin: '', packs: {}, cur: null, replay: false, left: 0 };
+  document.body.appendChild($('packOverlay'));           // must live directly under <body>: header/main/footer each start a stacking context, so a fixed overlay inside <main> would paint under the footer
+  $('packNote').addEventListener('click', e => {
+    const b = e.target.closest('.sealed, .replay'); if (!b) return;
+    const p = packUI.packs[b.dataset.pack]; if (!p) return;
+    openPackUI(p, b.classList.contains('replay'));
+  });
+  function openPackUI(p, replay) {
+    packUI.cur = p; packUI.replay = replay; packUI.left = p.cards.length;
+    const ov = $('packOverlay');
+    ov.innerHTML = `<div class="po-stage">
+      <div class="po-title">${replay ? 'Replay · ' : ''}Booster pack · ${esc(p.t || 'Tournament')}</div>
+      <div class="po-pack" role="button" tabindex="0"><div class="po-foil"></div><svg class="crest" aria-hidden="true"><use href="#stag"/></svg><div class="po-pack-txt">MATTLEMORE<br>GOLF LEAGUE</div><div class="po-hint">Tap to open</div></div>
+      <div class="po-cards hidden">${p.cards.map((c, i) => `<div class="po-slot" style="--i:${i}"><div class="po-card tier-${TIERS[c.tier] ? c.tier : 'common'}" data-i="${i}"><div class="po-inner">
+          <div class="po-back"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg><span>MGL</span></div>
+          <div class="po-front">${tcgHTML(c, null, true)}</div></div></div></div>`).join('')}</div>
+      <div class="po-flash"></div>
+      <div class="po-bar hidden"><span class="po-count"></span><button class="btn ghost po-all">Reveal all</button><button class="btn po-done hidden">${replay ? 'Close' : 'Add to hand'}</button></div>
+      <button class="po-close" title="Close">✕</button></div>`;
+    ov.classList.remove('hidden'); document.body.style.overflow = 'hidden';
+    fitCards(ov);
+    const pack = ov.querySelector('.po-pack'), cardsEl = ov.querySelector('.po-cards'), bar = ov.querySelector('.po-bar');
+    const count = () => { ov.querySelector('.po-count').textContent = packUI.left ? `${p.cards.length - packUI.left} of ${p.cards.length} revealed — tap a card` : 'All revealed!'; if (!packUI.left) { ov.querySelector('.po-done').classList.remove('hidden'); ov.querySelector('.po-all').classList.add('hidden'); } };
+    const flip = el => {
+      if (el.classList.contains('flipped')) return;
+      el.classList.add('flipped'); packUI.left--;
+      const top = /legendary|mythic/.test(el.className);
+      if (top) { const f = ov.querySelector('.po-flash'); f.className = 'po-flash ' + (el.classList.contains('tier-mythic') ? 'mythic' : 'legendary'); setTimeout(() => f.className = 'po-flash', 900); }
+      count();
+    };
+    const openIt = () => {
+      if (pack.classList.contains('opening')) return;
+      pack.classList.add('opening');
+      setTimeout(() => { pack.classList.add('hidden'); cardsEl.classList.remove('hidden'); bar.classList.remove('hidden'); count(); fitCards(cardsEl); }, 1150);
+    };
+    pack.addEventListener('click', openIt); pack.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') openIt(); });
+    cardsEl.addEventListener('click', e => { const c = e.target.closest('.po-card'); if (c) flip(c); });
+    ov.querySelector('.po-all').addEventListener('click', () => ov.querySelectorAll('.po-card').forEach((c, i) => setTimeout(() => flip(c), i * 220)));
+    ov.querySelector('.po-close').addEventListener('click', closePackUI);
+    ov.querySelector('.po-done').addEventListener('click', async () => {
+      if (!replay) { try { await rpc('open_pack', { p_owner: packUI.name, p_pin: packUI.pin, p_pack_id: p.id }); } catch (err) { msg('cardsMsg', err.message, 'err'); } }
+      closePackUI(); if (!replay) loadCards();
+    });
+  }
+  function closePackUI() { $('packOverlay').classList.add('hidden'); $('packOverlay').innerHTML = ''; document.body.style.overflow = ''; }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('packOverlay').classList.contains('hidden')) closePackUI(); });
+
   function updTees(box) {                                  // "N of 3 tees left" for the week selected in this card's Play form
     const sel = box.querySelector('.play-t'), out = box.querySelector('.tees-left'); if (!sel || !out) return;
     const used = JSON.parse($('hand').dataset.tees || '{}')[sel.value] || 0, left = 3 - used, cost = Number(out.dataset.cost) || 0;
