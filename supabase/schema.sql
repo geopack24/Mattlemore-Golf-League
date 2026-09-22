@@ -353,6 +353,7 @@ returns table (name text) language sql stable security definer set search_path =
   select name from owners where active order by name;
 $$;
 
+drop function if exists list_tournaments(int);   -- return type changed (is_major) — must be dropped before the create below
 create or replace function list_tournaments(p_season int default null)
 returns table (id int, name text, start_date date, lock_at timestamptz,
                prize_pool numeric, multiplier numeric, locked boolean, season int, is_major boolean)
@@ -377,7 +378,6 @@ $$;
 -- Who has picked for a tournament. Golfer names are NULL until lock time.
 -- (drop first: these return types grew a note column in Sep 2026)
 drop function if exists tournament_board(int);
-drop function if exists list_tournaments(int);
 drop function if exists admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric);
 drop function if exists season_picks(int);
 drop function if exists my_picks(text, text, int);
