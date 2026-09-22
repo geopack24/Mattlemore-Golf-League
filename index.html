@@ -299,19 +299,27 @@
   .po-pack.opening{animation:packOpen 1.15s cubic-bezier(.3,.7,.4,1) forwards}
   @keyframes packOpen{0%{transform:rotate(0)}15%{transform:rotate(-6deg) scale(1.03)}30%{transform:rotate(6deg) scale(1.05)}45%{transform:rotate(-5deg) scale(1.08)}60%{transform:rotate(3deg) scale(1.12);filter:brightness(1.6)}
     75%{transform:scale(1.35);filter:brightness(3);opacity:1}100%{transform:scale(2.4);filter:brightness(6);opacity:0}}
-  .po-cards{display:flex;justify-content:center;align-items:flex-end;gap:clamp(6px,1.4vw,18px);flex-wrap:wrap;perspective:1400px;width:100%}
-  .po-slot{width:clamp(110px,15vw,200px);animation:dealIn .6s cubic-bezier(.2,.8,.3,1) both;animation-delay:calc(var(--i) * .12s);transform-origin:50% 120%}
-  @media(min-width:900px){.po-slot{transform:rotate(calc((var(--i) - 2) * 5deg)) translateY(calc((var(--i) - 2) * (var(--i) - 2) * 9px))}
-    .po-slot{animation-name:dealInArc}}
-  @keyframes dealIn{from{opacity:0;transform:translateY(-140px) scale(.6)}to{opacity:1;transform:none}}
-  @keyframes dealInArc{from{opacity:0;transform:translateY(-140px) scale(.6)}to{opacity:1;transform:rotate(calc((var(--i) - 2) * 5deg)) translateY(calc((var(--i) - 2) * (var(--i) - 2) * 9px))}}
-  .po-card{aspect-ratio:2/3;cursor:pointer;perspective:1200px}
+  /* 3 cards on the top row, 2 centred underneath: a 6-column grid, each card two columns wide, row two starts one column in */
+  .po-cards{display:grid;grid-template-columns:repeat(6,1fr);gap:clamp(8px,1.6vw,22px) clamp(6px,1.2vw,16px);perspective:1400px;width:min(100%,780px)}
+  .po-slot{--r:0deg;animation:dealIn .6s cubic-bezier(.2,.8,.3,1) both;animation-delay:calc(var(--i) * .12s);transform-origin:50% 60%;transform:rotate(var(--r))}
+  .po-slot:nth-child(1){grid-column:1/3;--r:-4deg} .po-slot:nth-child(2){grid-column:3/5} .po-slot:nth-child(3){grid-column:5/7;--r:4deg}
+  .po-slot:nth-child(4){grid-column:2/4;--r:-2deg} .po-slot:nth-child(5){grid-column:4/6;--r:2deg}
+  @keyframes dealIn{from{opacity:0;transform:translateY(-140px) scale(.6) rotate(var(--r))}to{opacity:1;transform:rotate(var(--r))}}
+  .po-card{aspect-ratio:2/3;cursor:pointer;perspective:1200px;filter:drop-shadow(0 18px 28px rgba(0,0,0,.75))}
   .po-inner{position:relative;width:100%;height:100%;transform-style:preserve-3d;transition:transform .75s cubic-bezier(.4,.2,.2,1)}
   .po-card.flipped .po-inner{transform:rotateY(180deg)}
-  .po-back,.po-front{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:10px}
-  .po-back{background:radial-gradient(circle at 50% 38%,#3b2670,#0e0a1c 78%);border:2px solid rgba(255,220,140,.5);box-shadow:inset 0 0 40px rgba(0,0,0,.7),0 14px 30px rgba(0,0,0,.7);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
-    background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.03) 0 6px,transparent 6px 12px),radial-gradient(circle at 50% 38%,#3b2670,#0e0a1c 78%)}
-  .po-back .crest{width:60%;height:45%;opacity:.9} .po-back span{font-family:var(--display);font-weight:900;letter-spacing:.3em;color:#f6d98a;text-shadow:0 1px 4px #000}
+  .po-back,.po-front{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden}
+  /* the back is cut to the front frame's outline: mask = the common frame's alpha plus a rectangle over its (transparent) art
+     window (mask-position % is relative to leftover space: 7.8/(100-85.5) and 12.1/(100-44.7)) */
+  .po-back{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.5cqw;container-type:inline-size;
+    -webkit-mask:url('frames/common.png') center/100% 100% no-repeat,linear-gradient(#000,#000) 53.8% 21.9%/85.5% 44.7% no-repeat;
+    mask:url('frames/common.png') center/100% 100% no-repeat,linear-gradient(#000,#000) 53.8% 21.9%/85.5% 44.7% no-repeat;mask-composite:add;
+    background:radial-gradient(circle at 50% 42%,rgba(120,80,200,.55),transparent 55%),
+               repeating-linear-gradient(45deg,rgba(255,255,255,.035) 0 6px,transparent 6px 12px),
+               radial-gradient(circle at 50% 38%,#3b2670,#0e0a1c 78%);box-shadow:inset 0 0 60px rgba(0,0,0,.8)}
+  .po-back::before{content:"";position:absolute;inset:6% 7%;border:.6cqw solid rgba(246,217,138,.45);border-radius:2cqw;pointer-events:none}   /* inner gilt line */
+  .po-back .po-crest{width:64%;height:auto;filter:drop-shadow(0 .8cqw 1.6cqw rgba(0,0,0,.8))}
+  .po-back span{font-family:var(--display);font-weight:900;letter-spacing:.3em;font-size:5cqw;color:#f6d98a;text-shadow:0 1px 4px #000}
   .po-card:not(.flipped):hover .po-inner{transform:rotateY(-12deg) translateY(-6px)}
   .po-front{transform:rotateY(180deg)} .po-front .cardwrap,.po-front .mc{width:100%}
   .po-card.flipped.tier-rare .po-front{filter:drop-shadow(0 0 18px rgba(80,140,255,.8))}
@@ -695,7 +703,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-17';
+  const BUILD = '2026-09-22-18';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1106,7 +1114,7 @@
       <div class="po-title">${replay ? 'Replay · ' : ''}Booster pack · ${esc(p.t || 'Tournament')}</div>
       <div class="po-pack" role="button" tabindex="0"><div class="po-foil"></div><svg class="crest" aria-hidden="true"><use href="#stag"/></svg><div class="po-pack-txt">MATTLEMORE<br>GOLF LEAGUE</div><div class="po-hint">Tap to open</div></div>
       <div class="po-cards hidden">${p.cards.map((c, i) => `<div class="po-slot" style="--i:${i}"><div class="po-card tier-${TIERS[c.tier] ? c.tier : 'common'}" data-i="${i}"><div class="po-inner">
-          <div class="po-back"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg><span>MGL</span></div>
+          <div class="po-back"><img class="po-crest" src="assets/crest.png" alt=""><span>MGL</span></div>
           <div class="po-front">${tcgHTML(c, null, true)}</div></div></div></div>`).join('')}</div>
       <div class="po-flash"></div>
       <div class="po-bar hidden"><span class="po-count"></span><button class="btn ghost po-all">Reveal all</button><button class="btn po-done hidden">${replay ? 'Close' : 'Add to hand'}</button></div>
