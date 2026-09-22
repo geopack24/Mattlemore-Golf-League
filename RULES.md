@@ -42,3 +42,8 @@ The commissioner's rulings, in the order they were made. Every rule here is enfo
     card 5 is guaranteed Rare or better: Rare 70% / Legendary 25% / Mythic 5%. If the library has no card of the
     rolled tier, the next tier down is used. The same design can appear more than once.
 17. Pack pulls are announced on Discord by rarity only (the cards themselves stay secret until played).
+
+## Copy limits *(Sep 22 2026)*
+18. A card design may carry a **maximum number of copies in circulation** (copies currently in owners' hands). Once that
+    many are held, the design is not dealt again — by the commissioner or by booster packs — until a copy is played.
+    **The Fellowship of the Swing is capped at 2.** Other designs are unlimited unless the commissioner sets a cap.

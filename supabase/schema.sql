@@ -110,6 +110,7 @@ alter table card_library add column if not exists exempt_limit boolean not null 
 alter table cards        add column if not exists exempt_limit boolean not null default false;
 -- Tees (Sep 22 2026): every owner has 3 tees per tournament; a card costs 0–3 tees to play (RULES.md)
 alter table card_library add column if not exists cost int not null default 0 check (cost between 0 and 3);
+alter table card_library add column if not exists max_copies int check (max_copies is null or max_copies >= 1);   -- cap on copies held at once (null = unlimited); RULES.md 18
 alter table cards        add column if not exists cost int not null default 0 check (cost between 0 and 3);
 -- Booster packs (Sep 22 2026): one pack of 5 random library cards per owner at the end of every tournament
 create table if not exists packs (
@@ -385,6 +386,7 @@ drop function if exists admin_save_library_card(text, int, text, text, text, jso
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text);
 drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean);
+drop function if exists admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int);
 drop function if exists admin_list_cards(text);
 drop function if exists revealed_card(text);
 create or replace function tournament_board(p_tournament_id int)
@@ -556,13 +558,21 @@ begin
   end if;
 end $$;
 
--- A random active library design of the given tier; if that pool is empty, step down a tier (then up) so a pack is never short.
+-- Copies of a design currently in hands (held). Designs with max_copies stop being dealt once this reaches the cap.
+create or replace function _copies_held(p_library_id int) returns int language sql stable as $$
+  select count(*)::int from cards c where c.library_id = p_library_id and c.status = 'held';
+$$;
+create or replace function _at_copy_cap(l card_library) returns boolean language sql stable as $$
+  select l.max_copies is not null and _copies_held(l.id) >= l.max_copies;
+$$;
+
+-- A random active library design of the given tier (skipping designs at their copy cap); if that pool is empty, step down a tier (then up) so a pack is never short.
 create or replace function _pick_library_card(p_tier text) returns card_library language plpgsql volatile as $$
 declare l card_library; tiers text[] := array['mythic','legendary','rare','common']; i int; t text;
 begin
   i := coalesce(array_position(tiers, p_tier), 4);
   foreach t in array (tiers[i:4] || tiers[1:i-1]) loop
-    select * into l from card_library cl where not cl.retired and cl.tier = t order by random() limit 1;
+    select * into l from card_library cl where not cl.retired and cl.tier = t and not _at_copy_cap(cl) order by random() limit 1;
     if l.id is not null then return l; end if;
   end loop;
   return null;
@@ -1015,7 +1025,7 @@ end $$;
 
 create or replace function admin_list_library(p_admin_pin text)
 returns table (id int, name text, kind text, effect text, params jsonb, rules text, flavor text, image text,
-               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text, exempt_limit boolean, cost int)
+               retired boolean, times_dealt int, in_play int, created_at timestamptz, full_card boolean, tier text, exempt_limit boolean, cost int, max_copies int)
 language plpgsql stable security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
@@ -1023,7 +1033,7 @@ begin
     select l.id, l.name, l.kind, l.effect, l.params, l.rules, l.flavor, l.image, l.retired,
            (select count(*) from cards c where c.library_id = l.id and c.status <> 'revoked')::int,
            (select count(*) from cards c where c.library_id = l.id and c.status = 'held')::int,
-           l.created_at, l.full_card, l.tier, l.exempt_limit, l.cost
+           l.created_at, l.full_card, l.tier, l.exempt_limit, l.cost, l.max_copies
       from card_library l
      order by l.retired, lower(l.name);
 end $$;
@@ -1033,25 +1043,28 @@ create or replace function admin_save_library_card(p_admin_pin text, p_id int, p
                                                    p_params jsonb default '{}', p_rules text default null,
                                                    p_flavor text default null, p_image text default null,
                                                    p_full_card boolean default null, p_tier text default null,
-                                                   p_exempt_limit boolean default null, p_cost int default null)
+                                                   p_exempt_limit boolean default null, p_cost int default null,
+                                                   p_max_copies int default null, p_clear_max boolean default false)
 returns int language plpgsql security definer set search_path = public, extensions as $$
 declare v_id int;
 begin
   perform _check_admin(p_admin_pin);
   if trim(coalesce(p_name, '')) = '' then raise exception 'The card needs a name'; end if;
   if p_cost is not null and p_cost not between 0 and 3 then raise exception 'A card costs 0 to 3 tees'; end if;
+  if p_max_copies is not null and p_max_copies < 1 then raise exception 'Max copies must be 1 or more (leave it blank for unlimited)'; end if;
   if p_id is null then
-    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit, cost)
+    insert into card_library (name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit, cost, max_copies)
     values (trim(p_name), coalesce(nullif(trim(p_kind), ''), 'Enchantment'), p_effect, coalesce(p_params, '{}'),
             nullif(trim(p_rules), ''), nullif(trim(p_flavor), ''), nullif(p_image, ''), coalesce(p_full_card, false), coalesce(p_tier, 'common'),
-            coalesce(p_exempt_limit, false), coalesce(p_cost, 0))
+            coalesce(p_exempt_limit, false), coalesce(p_cost, 0), p_max_copies)
     returning id into v_id;
   else
     update card_library
        set name = trim(p_name), kind = coalesce(nullif(trim(p_kind), ''), 'Enchantment'), effect = p_effect,
            params = coalesce(p_params, '{}'), rules = nullif(trim(p_rules), ''), flavor = nullif(trim(p_flavor), ''),
            image = coalesce(nullif(p_image, ''), image), full_card = coalesce(p_full_card, full_card), tier = coalesce(p_tier, tier),
-           exempt_limit = coalesce(p_exempt_limit, exempt_limit), cost = coalesce(p_cost, cost), updated_at = now()
+           exempt_limit = coalesce(p_exempt_limit, exempt_limit), cost = coalesce(p_cost, cost),
+           max_copies = case when p_clear_max then null else coalesce(p_max_copies, max_copies) end, updated_at = now()
      where id = p_id returning id into v_id;
     if v_id is null then raise exception 'No such library card'; end if;
   end if;
@@ -1074,6 +1087,7 @@ begin
   perform _check_admin(p_admin_pin);
   select * into l from card_library cl where cl.id = p_library_id;
   if l.id is null then raise exception 'No such library card'; end if;
+  if _at_copy_cap(l) then raise exception '% is capped at % cop% in circulation and % already out', l.name, l.max_copies, case when l.max_copies = 1 then 'y' else 'ies' end, case when l.max_copies = 1 then 'it is' else 'they are' end; end if;
   select o.id into v_owner from owners o where lower(o.name) = lower(trim(p_owner));
   if v_owner is null then raise exception 'Unknown owner %', p_owner; end if;
   insert into cards (owner_id, library_id, name, kind, effect, params, rules, flavor, image, full_card, tier, exempt_limit, cost)
@@ -1283,7 +1297,7 @@ revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(
 drop function if exists _discord_post(text);
 revoke execute on function _discord_message(int), _discord_cards(int), _discord_post(int), announce_locked() from public, anon, authenticated;
 revoke execute on function _autofill_winnings(int), sync_scores(), _discord_text(text), _award_packs(int), award_due_packs(), _packs_message(int),
-                           _pack_tier(int), _pick_library_card(text) from public, anon, authenticated;
+                           _pack_tier(int), _pick_library_card(text), _copies_held(int), _at_copy_cap(card_library) from public, anon, authenticated;
 grant execute on function _discord_message(int), _discord_cards(int), _autofill_winnings(int), _award_packs(int) to service_role;   -- the edge functions
 grant all on live_scores, packs to service_role;
 grant execute on function
@@ -1291,7 +1305,7 @@ grant execute on function
   revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int), open_pack(text, text, int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
-  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int), admin_award_packs(text, int),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int, int, boolean), admin_award_packs(text, int),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   admin_announce(text, int), admin_set_discord(text, text), admin_discord_status(text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),

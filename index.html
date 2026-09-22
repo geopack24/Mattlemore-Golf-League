@@ -590,6 +590,7 @@
         <div class="f"><label>Card name</label><input id="dcName" placeholder="Ryder Die"></div>
         <div class="f sm"><label>Type line</label><input id="dcKind" value="Enchantment"></div>
         <div class="f sm"><label>Tier</label><select id="dcTier"></select></div>
+        <div class="f sm"><label>Max copies</label><input id="dcMax" type="number" min="1" step="1" placeholder="unlimited" title="How many copies may be in owners' hands at once. Blank = unlimited."></div>
         <div class="f sm"><label>Tee cost</label><select id="dcCost"><option value="0">0 · free</option><option value="1">1 tee</option><option value="2">2 tees</option><option value="3">3 tees</option></select></div>
       </div>
       <div class="row" style="margin-top:10px">
@@ -703,7 +704,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-18';
+  const BUILD = '2026-09-22-19';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1279,7 +1280,8 @@
   }
   const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcArtVideo ? { ...dcParams(), _art: dcArt } : dcParams(),
     p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageOut(), p_full_card: $('dcFull').checked, p_tier: $('dcTier').value,
-    p_exempt_limit: $('dcExempt').checked, p_cost: Number($('dcCost').value) });
+    p_exempt_limit: $('dcExempt').checked, p_cost: Number($('dcCost').value),
+    p_max_copies: $('dcMax').value ? Number($('dcMax').value) : null, p_clear_max: !$('dcMax').value });
   // what gets stored: a video as-is (its pan/zoom rides in params._art), a still with the chosen crop baked in, or null = keep the library art
   function dcImageOut() {
     if (dcArtVideo) return dcImageData;
@@ -1333,7 +1335,7 @@
   $('dcZoom').addEventListener('input', () => { dcArt.s = Number($('dcZoom').value); dcArtDirty = true; applyArt(); });
   $('dcArtReset').addEventListener('click', () => { dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; applyArt(); });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcCost').value = '0'; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcCost').value = '0'; $('dcMax').value = ''; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     dcArt = { x: .5, y: .5, s: 1 }; dcArtImg = null; dcArtSrc = null; dcArtVideo = false; dcArtDims = null; dcArtDirty = false;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
@@ -1418,7 +1420,7 @@
     const shown = libRows.filter(libFilter);
     $('libCount').textContent = libRows.length ? `Showing ${shown.length} of ${libRows.length} designs` : '';
     $('library').innerHTML = shown.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
-      <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b> in hands${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
+      <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b>${l.max_copies ? ` / ${l.max_copies}` : ''} in hands${l.max_copies && l.in_play >= l.max_copies ? ' · <span class="tag lock">capped</span>' : ''}${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
       <div class="row">
         ${l.retired ? '' : `<div class="f"><select class="lib-owner">${ownerOpts}</select></div><div><button class="btn lib-deal" data-id="${l.id}" style="padding:8px 12px">Deal</button></div>`}
         <div><button class="btn ghost lib-edit" data-id="${l.id}" style="padding:7px 10px">Edit</button></div>
@@ -1440,7 +1442,7 @@
         dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
         dcArtVideo = isVideo(l.image); dcArtSrc = null; dcArtDirty = false; dcArt = (l.params && l.params._art) ? { ...l.params._art } : { x: .5, y: .5, s: 1 }; loadArtImg(l.image);
         $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
-        $('dcFull').checked = !!l.full_card; $('dcExempt').checked = !!l.exempt_limit; $('dcCost').value = String(l.cost ?? 0); $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
+        $('dcFull').checked = !!l.full_card; $('dcExempt').checked = !!l.exempt_limit; $('dcCost').value = String(l.cost ?? 0); $('dcMax').value = l.max_copies ?? ''; $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
         $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
         $('dcTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
