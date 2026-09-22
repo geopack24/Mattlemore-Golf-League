@@ -56,6 +56,9 @@ George is accumulating league rulings; **every new rule goes into `RULES.md` fir
 ## Copy caps (Sep 22 2026, RULES.md 18)
 `card_library.max_copies` (null = unlimited; designer "Max copies", blank clears via `p_clear_max`). `_copies_held(id)` counts `status='held'` copies; `_at_copy_cap(row)` gates both `admin_deal_from_library` (raises) and `_pick_library_card` (skips the design, so packs fall through to another design/tier). Fellowship of the Swing = 2. Library card meta shows `held / max` and a "capped" tag.
 
+## Majors (Sep 22 2026, RULES.md 19)
+`tournaments.is_major` — set by a regex update at the END of schema.sql (Masters, PGA Championship, US Open, British/The Open, PLAYERS) and editable per tournament in Schedule (`admin_upsert_tournament(..., p_is_major)`). George's rule: **THE PLAYERS counts as a major for all card purposes.** Cards can carry `params.major_only=true` (designer checkbox "can only be played at a major"): `play_card` refuses non-majors, My Cards only offers majors in the Play-on list, the foot shows a "majors only" tag, This Week shows a "Major" tag. Any future major-related effect should read `tournaments.is_major`, never the name.
+
 ## Open questions for GP
 - Owner names live in sheet tabs not yet shared (add via Commissioner tab or `admin_set_owner`).
 - 2027 purses: seeded with 2026 values; update when the Tour publishes them (cosmetic only).

@@ -47,3 +47,8 @@ The commissioner's rulings, in the order they were made. Every rule here is enfo
 18. A card design may carry a **maximum number of copies in circulation** (copies currently in owners' hands). Once that
     many are held, the design is not dealt again — by the commissioner or by booster packs — until a copy is played.
     **The Fellowship of the Swing is capped at 2.** Other designs are unlimited unless the commissioner sets a cap.
+
+## Majors *(Sep 22 2026)*
+19. For **all card purposes**, the majors are the Masters, the PGA Championship, the U.S. Open, The Open Championship
+    **and THE PLAYERS Championship**. Any card that refers to majors (for example one marked "can only be played at a
+    major") treats THE PLAYERS as a major. The commissioner can flag or unflag any tournament under Schedule.

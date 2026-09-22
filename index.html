@@ -609,6 +609,7 @@
       </div>
       <div class="row" style="margin-top:6px">
         <label class="chk"><input type="checkbox" id="dcExempt"> exempt from the 3-cards-per-tournament limit (the card text says so)</label>
+        <label class="chk"><input type="checkbox" id="dcMajorOnly"> can only be played at a major (Masters, PGA, U.S. Open, The Open, THE PLAYERS)</label>
       </div>
       <div class="row" style="margin-top:12px;align-items:center">
         <div><button class="btn" id="dcDeal">Deal card</button></div>
@@ -654,6 +655,7 @@
         <div class="row" style="margin-top:10px">
           <div class="f"><label>Prize pool ($)</label><input id="tPool" type="number"></div>
           <div class="f sm"><label>Multiplier</label><input id="tMult" type="number" step="0.05" value="1"></div>
+          <label class="chk" style="align-self:end"><input type="checkbox" id="tMajor"> counts as a major (for cards)</label>
           <div><button class="btn" id="tSave">Save tournament</button></div>
           <div><button class="btn ghost" id="tDelete">Delete</button></div>
         </div>
@@ -704,7 +706,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-19';
+  const BUILD = '2026-09-22-20';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -787,7 +789,7 @@
   };
   function tcgHTML(c, foot, bare = false) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
-    const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">${tierTag(c.tier)} ${costTag(c.cost)} ⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
+    const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">${tierTag(c.tier)} ${costTag(c.cost)}${c.params && c.params.major_only ? ' <span class="tag tier-mythic" title="only at the Masters, PGA, U.S. Open, The Open or THE PLAYERS">majors only</span>' : ''} ⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
     if (c.full_card && c.image) return `<div class="cardwrap"><div class="tcg full ${c.status || ''}">${artEl(c.image, '', c.name)}</div>${footHTML}</div>`;
     const tier = TIERS[c.tier] ? c.tier : 'common', top = tier === 'legendary' || tier === 'mythic';
     const num = String(c.library_id || c.id || 0).padStart(3, '0');
@@ -928,9 +930,9 @@
     const penTag = o => pen[o] ? ` <span class="tag ${strokesClass(pen[o].strokes)}" title="${esc(pen[o].cards)}">${fmtStrokes(pen[o].strokes)}</span>` : '';
     const picked = board.filter(b => b.has_picked).length;
     const locked = t.locked || new Date(t.lock_at) <= new Date();
-    $('boardStatus').innerHTML = locked
+    $('boardStatus').innerHTML = (t.is_major ? '<span class="tag tier-mythic" title="counts as a major for all card purposes">Major</span> ' : '') + (locked
       ? `<span class="tag lock">Locked</span> <span class="muted">picks revealed · started ${fmtWhen(t.lock_at)}</span>`
-      : `<span class="tag open">Open</span> <span class="muted">locks ${fmtWhen(t.lock_at)}</span>`;
+      : `<span class="tag open">Open</span> <span class="muted">locks ${fmtWhen(t.lock_at)}</span>`);
     $('boardKpi').innerHTML = `
       <div><b>${fmt$(t.prize_pool)}</b><span>Purse</span></div>
       <div><b>${Number(t.multiplier)}×</b><span>Multiplier</span></div>
@@ -1078,7 +1080,8 @@
       const underway = tournaments.filter(t => t.locked && Date.now() < new Date(t.start_date + 'T00:00:00-04:00').getTime() + 4 * 864e5);
       $('hand').innerHTML = shown.map(c => {
         const e = EFFECTS[c.effect] || EFFECTS.custom, instant = isInstant(c);
-        const open = instant ? [...underway, ...upcoming] : upcoming;
+        let open = instant ? [...underway, ...upcoming] : upcoming;
+        if (c.params && c.params.major_only) open = open.filter(t => t.is_major);   // majors-only card: only majors (incl. THE PLAYERS) are offered
         let foot;
         if (c.status === 'held') {
           foot = `<div class="row">
@@ -1274,11 +1277,11 @@
   function dcSync() {
     dcRenderParams();
     const img = dcArtSrc || dcImageData || dcLibImage, full = $('dcFull').checked;
-    $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: { ...dcParams(), _art: img && !full ? dcArt : undefined },
+    $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: { ...dcParams(), _art: img && !full ? dcArt : undefined, major_only: $('dcMajorOnly').checked || undefined },
       rules: $('dcRules').value, flavor: $('dcFlavor').value, image: img, full_card: full, tier: $('dcTier').value, cost: Number($('dcCost').value) });
     fitCards($('dcPreview')); bindArtEditor();
   }
-  const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcArtVideo ? { ...dcParams(), _art: dcArt } : dcParams(),
+  const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: { ...dcParams(), ...(dcArtVideo ? { _art: dcArt } : {}), ...($('dcMajorOnly').checked ? { major_only: true } : {}) },
     p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageOut(), p_full_card: $('dcFull').checked, p_tier: $('dcTier').value,
     p_exempt_limit: $('dcExempt').checked, p_cost: Number($('dcCost').value),
     p_max_copies: $('dcMax').value ? Number($('dcMax').value) : null, p_clear_max: !$('dcMax').value });
@@ -1335,7 +1338,7 @@
   $('dcZoom').addEventListener('input', () => { dcArt.s = Number($('dcZoom').value); dcArtDirty = true; applyArt(); });
   $('dcArtReset').addEventListener('click', () => { dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; applyArt(); });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcCost').value = '0'; $('dcMax').value = ''; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcMajorOnly').checked = false; $('dcCost').value = '0'; $('dcMax').value = ''; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     dcArt = { x: .5, y: .5, s: 1 }; dcArtImg = null; dcArtSrc = null; dcArtVideo = false; dcArtDims = null; dcArtDirty = false;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
@@ -1442,7 +1445,7 @@
         dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
         dcArtVideo = isVideo(l.image); dcArtSrc = null; dcArtDirty = false; dcArt = (l.params && l.params._art) ? { ...l.params._art } : { x: .5, y: .5, s: 1 }; loadArtImg(l.image);
         $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
-        $('dcFull').checked = !!l.full_card; $('dcExempt').checked = !!l.exempt_limit; $('dcCost').value = String(l.cost ?? 0); $('dcMax').value = l.max_copies ?? ''; $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
+        $('dcFull').checked = !!l.full_card; $('dcExempt').checked = !!l.exempt_limit; $('dcMajorOnly').checked = !!(l.params && l.params.major_only); $('dcCost').value = String(l.cost ?? 0); $('dcMax').value = l.max_copies ?? ''; $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
         $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
         $('dcTitle').scrollIntoView({ behavior: 'smooth', block: 'start' });
       } else {
@@ -1535,14 +1538,14 @@
     const t = tournaments.find(x => x.name === $('tName').value); if (!t) return;
     $('tSeason').value = t.season; $('tOrder').value = tournaments.indexOf(t) + 1; $('tDate').value = t.start_date;
     const d = new Date(t.lock_at); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); $('tLock').value = d.toISOString().slice(0, 16);
-    $('tPool').value = t.prize_pool; $('tMult').value = t.multiplier;
+    $('tPool').value = t.prize_pool; $('tMult').value = t.multiplier; $('tMajor').checked = !!t.is_major;
   });
   $('tDate').addEventListener('change', () => { if (!$('tLock').value && $('tDate').value) $('tLock').value = $('tDate').value + 'T07:00'; });
   $('tSave').addEventListener('click', async () => {
     try {
       if (!$('tName').value || !$('tDate').value || !$('tLock').value || !$('tPool').value) throw new Error('Name, start date, lock time and prize pool are required.');
       await rpc('admin_upsert_tournament', { p_admin_pin: apin(), p_season: Number($('tSeason').value), p_sort_order: Number($('tOrder').value || 99), p_name: $('tName').value,
-        p_start_date: $('tDate').value, p_lock_at: new Date($('tLock').value).toISOString(), p_prize_pool: Number($('tPool').value), p_multiplier: Number($('tMult').value || 1) });
+        p_start_date: $('tDate').value, p_lock_at: new Date($('tLock').value).toISOString(), p_prize_pool: Number($('tPool').value), p_multiplier: Number($('tMult').value || 1), p_is_major: $('tMajor').checked });
       msg('tMsg', `Saved ${$('tName').value}.`, 'ok'); await loadShared(); await loadBoard();
     } catch (e) { msg('tMsg', e.message, 'err'); }
   });
