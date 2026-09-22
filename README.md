@@ -92,7 +92,7 @@ scoring always uses the winnings you enter. Fix any of them — or add/remove a 
 
 Commissioner tab → **Design a card**: name the card, choose its **effect** (multiply my points,
 bonus/penalty, duel, steal %, swap, shield, mulligan, stroke adjustment (± strokes), or custom), add the rules and flavor text and the artwork,
-then **Deal card** to an owner. Artwork can be a picture or a short MP4/WebM clip (keep it under about 3 MB) for animated cards. New designs are saved to the **Card library** — the league's permanent pool — so
+then **Deal card** to an owner. Artwork can be a picture or a short MP4/WebM clip (keep it under about 3 MB) for animated cards. In the preview, drag the art to position it and scroll (or use the slider) to zoom; that framing is what gets saved. New designs are saved to the **Card library** — the league's permanent pool — so
 any card can be dealt again to anyone, this season or next. From the library you can also edit a design or retire it.
 Only that owner can see the card, under **My Cards** (name + PIN). They play it on an upcoming week — and pick an
 opponent if the card needs one — and it stays secret until that tournament locks. Then it shows up on **This Week**

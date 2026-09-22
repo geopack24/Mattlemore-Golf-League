@@ -200,7 +200,9 @@
   .mc{--ink:#1a1208;--coll:#f1ebdd;--tf:#fff;--ts:#5b5b5b;position:relative;aspect-ratio:2/3;container-type:inline-size;background:none;
     filter:drop-shadow(0 18px 28px rgba(0,0,0,.7));font-family:"EB Garamond",Georgia,serif;transform-style:preserve-3d}   /* the frame PNG is the card's edge; no slab behind it */
   .mc>*{position:absolute}
-  .mc .mc-art{left:7.8%;top:12.1%;width:85.5%;height:44.7%;object-fit:cover;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%)}
+  .mc .mc-art{left:7.8%;top:12.1%;width:85.5%;height:44.7%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%)}
+  .mc .mc-art>img,.mc .mc-art>video{width:100%;height:100%;object-fit:cover;display:block;user-select:none;-webkit-user-drag:none}
+  #dcPreview .mc-art{cursor:grab;touch-action:none} #dcPreview .mc-art:active{cursor:grabbing}
   .mc .mc-art .crest{width:50%;height:50%;opacity:.85}
   /* The frame PNG is the only in-flow child: its intrinsic 2:3 sets the card's height in every browser, so the bars and the
      cqw-sized lettering always agree. (Relying on aspect-ratio inside a flex column let some browsers squash the card.) */
@@ -591,7 +593,8 @@
       </div>
       <div id="dcMsg"></div>
       <div class="grid2" style="margin-top:14px">
-        <div><div class="hint" style="margin:0 0 8px">Preview of the form above (not a saved card)</div><div class="hand mini" id="dcPreview"></div></div>
+        <div><div class="hint" style="margin:0 0 8px">Preview of the form above (not a saved card)</div><div class="hand mini" id="dcPreview"></div>
+          <div class="row" id="dcArtTools" style="margin-top:8px;align-items:center;gap:10px"><span class="hint" style="margin:0">Drag the art to position it · scroll or slide to zoom</span><input type="range" id="dcZoom" min="1" max="4" step="0.01" value="1" style="width:150px"><button class="btn ghost" id="dcArtReset" style="padding:6px 10px">Reset art</button></div></div>
         <div><div class="hint" style="margin:0 0 8px">All cards dealt</div>
           <div class="scroll"><table id="dcTable"><thead><tr><th>Owner</th><th>Card</th><th>Status</th><th>Week</th><th></th></tr></thead><tbody></tbody></table></div></div>
       </div>
@@ -676,7 +679,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-10';
+  const BUILD = '2026-09-22-11';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -735,9 +738,14 @@
   const costPips = n => { n = Number(n) || 0; return `<div class="mc-cost" title="${n ? n + ' tee' + (n === 1 ? '' : 's') + ' to play' : 'free to play'}">${n}</div>`; };
   // Card art may be a still (JPEG/PNG data URL) or animated (MP4/WebM data URL): video plays muted on a loop, no controls.
   const isVideo = src => /^data:video\//.test(src || '') || /\.(mp4|webm)(\?|$)/i.test(src || '');
-  const artEl = (src, cls, alt) => isVideo(src)
-    ? `<video class="${cls}" src="${esc(src)}" autoplay muted loop playsinline disablepictureinpicture></video>`
-    : `<img class="${cls}" src="${esc(src)}" alt="${esc(alt || '')}">`;
+  // params._art = {x, y, s}: focal point (fractions) + zoom, set by dragging/zooming in the designer. Still images get the
+  // crop baked into the stored JPEG; videos keep _art and are positioned live.
+  const artStyle = a => a ? ` style="object-position:${(a.x * 100).toFixed(2)}% ${(a.y * 100).toFixed(2)}%;transform:scale(${(+a.s).toFixed(3)});transform-origin:${(a.x * 100).toFixed(2)}% ${(a.y * 100).toFixed(2)}%"` : '';
+  const artEl = (src, cls, alt, art) => {
+    const inner = isVideo(src) ? `<video src="${esc(src)}"${artStyle(art)} autoplay muted loop playsinline disablepictureinpicture></video>`
+                               : `<img src="${esc(src)}"${artStyle(art)} alt="${esc(alt || '')}">`;
+    return cls ? `<div class="${cls}">${inner}</div>` : inner;
+  };
   function tcgHTML(c, foot, bare = false) {
     const e = EFFECTS[c.effect] || EFFECTS.custom;
     const footHTML = bare ? '' : `<div class="tcg-foot"><div class="fx">${tierTag(c.tier)} ${costTag(c.cost)} ⚙ ${esc(e.sum(c.params || {}))}</div>${foot || ''}</div>`;   // what the engine will do, kept off the card face
@@ -745,7 +753,7 @@
     const tier = TIERS[c.tier] ? c.tier : 'common', top = tier === 'legendary' || tier === 'mythic';
     const num = String(c.library_id || c.id || 0).padStart(3, '0');
     return `<div class="cardwrap ${top ? 'tilt' : ''}"><div class="mc tier-${tier} ${c.status || ''}" data-tilt="${top ? 1 : 0}" style="--frame:url('frames/${tier}.png?v=${BUILD}')">
-      ${c.image ? artEl(c.image, 'mc-art', '') : '<div class="mc-art"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg></div>'}
+      ${c.image ? artEl(c.image, 'mc-art', '', c.params && c.params._art) : '<div class="mc-art"><svg class="crest" aria-hidden="true"><use href="#stag"/></svg></div>'}
       <img class="mc-frame" src="frames/${tier}.png?v=${BUILD}" alt="">
       <div class="mc-title" data-text="${esc(c.name)}"><span>${esc(c.name)}</span></div>
       <div class="mc-type" data-text="${esc(c.kind || 'Enchantment')}"><span>${esc(c.kind || 'Enchantment')}</span></div>
@@ -823,7 +831,7 @@
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
   document.fonts?.addEventListener?.('loadingdone', () => fitCards());   // a font weight arriving after a card rendered changes its width — measure again
-  window.__mgl = { tcgHTML, fitCards, openPackUI };      // exposed for design previews in the browser console
+  window.__mgl = { tcgHTML, fitCards, openPackUI, dcSetArt: src => { dcArtVideo = false; dcArtSrc = src; dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; dcArtImg = new Image(); dcArtImg.onload = () => { dcArtDims = { w: dcArtImg.naturalWidth, h: dcArtImg.naturalHeight }; dcSync(); }; dcArtImg.src = src; }, dcImageOut: () => dcImageOut(), dcArtState: () => dcArt };   // exposed for design previews / tests in the browser console
   if (/[?&]zones=1/.test(location.search)) document.documentElement.classList.add('zones');   // ?zones=1 outlines every text box on the cards (for tuning the frames)
   let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
@@ -1205,7 +1213,8 @@
     } catch (e) { msg('adminResultsMsg', e.message, 'err'); }
   });
   // ---- deal cards ----
-  let dcImageData = null, dcLibId = null, dcLibImage = null;   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
+  let dcImageData = null, dcLibId = null, dcLibImage = null;
+  let dcArt = { x: .5, y: .5, s: 1 }, dcArtImg = null, dcArtSrc = null, dcArtVideo = false, dcArtDims = null, dcArtDirty = false;   // art pan/zoom editor state   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
   $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
   $('dcTier').innerHTML = Object.entries(TIERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('libTier').innerHTML += Object.entries(TIERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
@@ -1225,22 +1234,74 @@
   }
   function dcSync() {
     dcRenderParams();
-    $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: dcParams(),
-      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: dcImageData || dcLibImage, full_card: $('dcFull').checked, tier: $('dcTier').value, cost: Number($('dcCost').value) });
-    fitCards($('dcPreview'));
+    const img = dcArtSrc || dcImageData || dcLibImage, full = $('dcFull').checked;
+    $('dcPreview').innerHTML = tcgHTML({ name: $('dcName').value || 'Card name', kind: $('dcKind').value, effect: $('dcEffect').value, params: { ...dcParams(), _art: img && !full ? dcArt : undefined },
+      rules: $('dcRules').value, flavor: $('dcFlavor').value, image: img, full_card: full, tier: $('dcTier').value, cost: Number($('dcCost').value) });
+    fitCards($('dcPreview')); bindArtEditor();
   }
-  const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcParams(),
-    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageData, p_full_card: $('dcFull').checked, p_tier: $('dcTier').value,
+  const dcFields = () => ({ p_name: $('dcName').value, p_kind: $('dcKind').value, p_effect: $('dcEffect').value, p_params: dcArtVideo ? { ...dcParams(), _art: dcArt } : dcParams(),
+    p_rules: $('dcRules').value || null, p_flavor: $('dcFlavor').value || null, p_image: dcImageOut(), p_full_card: $('dcFull').checked, p_tier: $('dcTier').value,
     p_exempt_limit: $('dcExempt').checked, p_cost: Number($('dcCost').value) });
+  // what gets stored: a video as-is (its pan/zoom rides in params._art), a still with the chosen crop baked in, or null = keep the library art
+  function dcImageOut() {
+    if (dcArtVideo) return dcImageData;
+    if ($('dcFull').checked) return dcImageData;
+    if (dcArtImg && (dcArtDirty || dcImageData)) return bakeArt();
+    return dcImageData;
+  }
+  const ART_W = 640, ART_H = 502;                          // baked art size, the art window's 85.5 : 67 aspect
+  function artRect(iw, ih, Ww, Wh) {                       // source rect of the image that shows in a Ww×Wh window for the current dcArt
+    const k = Math.max(Ww / iw, Wh / ih) * dcArt.s, sw = Ww / k, sh = Wh / k;
+    return { sx: iw * dcArt.x - sw * dcArt.x, sy: ih * dcArt.y - sh * dcArt.y, sw, sh };
+  }
+  function bakeArt() {
+    const cv = document.createElement('canvas'); cv.width = ART_W; cv.height = ART_H;
+    const r = artRect(dcArtImg.naturalWidth, dcArtImg.naturalHeight, ART_W, ART_H);
+    cv.getContext('2d').drawImage(dcArtImg, r.sx, r.sy, r.sw, r.sh, 0, 0, ART_W, ART_H);
+    return cv.toDataURL('image/jpeg', 0.86);
+  }
+  function loadArtImg(src) {                               // remember the source image so a saved card can be re-cropped later
+    dcArtImg = null; dcArtDims = null; if (!src || isVideo(src)) return;
+    const im = new Image(); im.onload = () => { dcArtImg = im; dcArtDims = { w: im.naturalWidth, h: im.naturalHeight }; }; im.src = src;
+  }
+  function applyArt() {                                    // live update of the preview without re-rendering the whole card
+    const el = document.querySelector('#dcPreview .mc-art>img, #dcPreview .mc-art>video'); if (!el) return;
+    el.style.objectPosition = `${dcArt.x * 100}% ${dcArt.y * 100}%`; el.style.transform = `scale(${dcArt.s})`; el.style.transformOrigin = `${dcArt.x * 100}% ${dcArt.y * 100}%`;
+    $('dcZoom').value = dcArt.s;
+  }
+  function bindArtEditor() {
+    const box = document.querySelector('#dcPreview .mc-art'), media = box && box.querySelector('img, video');
+    $('dcArtTools').classList.toggle('hidden', !media || $('dcFull').checked);
+    if (!media) return;
+    let drag = null;
+    box.addEventListener('pointerdown', e => { drag = { x: e.clientX, y: e.clientY, ax: dcArt.x, ay: dcArt.y }; box.setPointerCapture(e.pointerId); e.preventDefault(); });
+    box.addEventListener('pointermove', e => {
+      if (!drag) return;
+      const iw = dcArtDims?.w || media.naturalWidth || media.videoWidth, ih = dcArtDims?.h || media.naturalHeight || media.videoHeight; if (!iw || !ih) return;
+      const Ww = box.clientWidth, Wh = box.clientHeight, k = Math.max(Ww / iw, Wh / ih) * dcArt.s, D = iw * k, H = ih * k;
+      // the image's visible offset is -(D-Ww)*x, so a drag of dx pixels moves the focal point by -dx/(D-Ww)
+      if (D > Ww + .5) dcArt.x = Math.min(1, Math.max(0, drag.ax - (e.clientX - drag.x) / (D - Ww)));
+      if (H > Wh + .5) dcArt.y = Math.min(1, Math.max(0, drag.ay - (e.clientY - drag.y) / (H - Wh)));
+      dcArtDirty = true; applyArt();
+    });
+    const end = () => { drag = null; }; box.addEventListener('pointerup', end); box.addEventListener('pointercancel', end);
+    box.addEventListener('wheel', e => { e.preventDefault(); dcArt.s = Math.min(4, Math.max(1, dcArt.s * (e.deltaY < 0 ? 1.08 : 1 / 1.08))); dcArtDirty = true; applyArt(); }, { passive: false });
+  }
+  $('dcZoom').addEventListener('input', () => { dcArt.s = Number($('dcZoom').value); dcArtDirty = true; applyArt(); });
+  $('dcArtReset').addEventListener('click', () => { dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; applyArt(); });
   function dcReset() {
     ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcCost').value = '0'; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
+    dcArt = { x: .5, y: .5, s: 1 }; dcArtImg = null; dcArtSrc = null; dcArtVideo = false; dcArtDims = null; dcArtDirty = false;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
   // After saving an edit, stay on that card (form + preview intact) instead of wiping the form —
   // a blank preview right after "Update" looked like the card had reverted.
   function dcKeepEditing(id) {
-    dcLibId = id; if (dcImageData) { dcLibImage = dcImageData; dcImageData = null; $('dcImage').value = ''; }
+    dcLibId = id;
+    if (!dcArtVideo && dcArtImg && (dcArtDirty || dcImageData) && !$('dcFull').checked) { dcLibImage = bakeArt(); dcArt = { x: .5, y: .5, s: 1 }; loadArtImg(dcLibImage); }   // the crop is now baked in; start fresh from it
+    else if (dcImageData) dcLibImage = dcImageData;
+    dcImageData = null; dcArtSrc = null; dcArtDirty = false; $('dcImage').value = '';
     $('dcTitle').textContent = `Editing “${$('dcName').value}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
   }
   $('dcCancel').addEventListener('click', dcReset);
@@ -1260,9 +1321,9 @@
       if (mb > 8) { msg('dcMsg', `That video is ${mb.toFixed(1)} MB. Keep card videos under 8 MB (ideally 2–3 MB: 720px wide, 6–10 seconds, no audio).`, 'err'); $('dcImage').value = ''; return; }
       const rd = new FileReader();
       rd.onload = () => {
-        dcImageData = rd.result;
+        dcImageData = rd.result; dcArtVideo = true; dcArtImg = null; dcArtSrc = null; dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true;
         const v = document.createElement('video'); v.muted = true; v.preload = 'metadata';
-        v.onloadedmetadata = () => { if (v.videoHeight / v.videoWidth > 1.25) $('dcFull').checked = true; dcSync(); };
+        v.onloadedmetadata = () => { dcArtDims = { w: v.videoWidth, h: v.videoHeight }; if (v.videoHeight / v.videoWidth > 1.25) $('dcFull').checked = true; dcSync(); };
         v.src = dcImageData; dcSync();
         msg('dcMsg', `Animated art loaded (${mb.toFixed(1)} MB). It plays muted on a loop wherever the card appears.`, 'ok');
       };
@@ -1272,10 +1333,13 @@
     img.onload = () => {
       const full = img.height / img.width > 1.25;        // printed cards are portrait; plain artwork is square-ish
       if (full) $('dcFull').checked = true;
-      const k = Math.min(1, (full ? 760 : 640) / img.width), cv = document.createElement('canvas');   // shrink so the card stays small in the database
+      // keep a copy no wider than 1600px as the crop source (drag/zoom in the preview); the stored JPEG is baked from it on save
+      const k = Math.min(1, (full ? 760 : 1600) / img.width), cv = document.createElement('canvas');
       cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
       cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      dcImageData = cv.toDataURL('image/jpeg', 0.84); URL.revokeObjectURL(url); dcSync();
+      dcImageData = cv.toDataURL('image/jpeg', full ? 0.84 : 0.92); URL.revokeObjectURL(url);
+      dcArtVideo = false; dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; dcArtSrc = dcImageData;
+      dcArtImg = new Image(); dcArtImg.onload = () => { dcArtDims = { w: dcArtImg.naturalWidth, h: dcArtImg.naturalHeight }; dcSync(); }; dcArtImg.src = dcImageData;
     };
     img.src = url;
   });
@@ -1331,6 +1395,7 @@
       } else if (edit) {
         const l = libRows.find(x => x.id === Number(edit.dataset.id)); if (!l) return;
         dcLibId = l.id; dcLibImage = l.image; dcImageData = null; $('dcImage').value = '';
+        dcArtVideo = isVideo(l.image); dcArtSrc = null; dcArtDirty = false; dcArt = (l.params && l.params._art) ? { ...l.params._art } : { x: .5, y: .5, s: 1 }; loadArtImg(l.image);
         $('dcName').value = l.name; $('dcKind').value = l.kind; $('dcEffect').value = l.effect; $('dcRules').value = l.rules || ''; $('dcFlavor').value = l.flavor || '';
         $('dcFull').checked = !!l.full_card; $('dcExempt').checked = !!l.exempt_limit; $('dcCost').value = String(l.cost ?? 0); $('dcTier').value = TIERS[l.tier] ? l.tier : 'common'; dcRenderParams(l.params || {});
         $('dcTitle').textContent = `Editing “${l.name}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
