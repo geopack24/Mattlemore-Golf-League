@@ -224,16 +224,22 @@
   .mc .mc-title::before,.mc .mc-type::before{-webkit-text-fill-color:var(--rim);color:var(--rim);transform:translateY(-.18cqw)}
   .mc .mc-title::after,.mc .mc-type::after{-webkit-text-fill-color:var(--ext);color:var(--ext);transform:translateY(.42cqw);
     text-shadow:0 .3cqw 0 var(--ext2),0 .55cqw 0 #000,0 .9cqw 1.6cqw rgba(0,0,0,.95),0 0 1.4cqw rgba(0,0,0,.8)}
-  .mc .mc-title{left:10.2%;top:4.9%;width:64%;height:6.5%;font-size:6.2cqw;letter-spacing:.12cqw;padding:0 3cqw 0 2cqw}
-  .mc .mc-type{left:13%;top:54.6%;width:61.5%;height:4.4%;text-transform:uppercase;font-size:3.9cqw;letter-spacing:.4cqw;padding:0 3cqw 0 2cqw}
+  /* zone boxes measured on the four frames Sep 22 2026 (row-luminance scan of frames/*.png): title bar interior y 4.2–11.8%,
+     type bar interior y 55.0–59.9%, text panel y 61.5–89%, collector strip y 90.5–95.4%. Open the site with ?zones=1 to see the boxes. */
+  .mc .mc-title{left:10.2%;top:4.7%;width:64%;height:6.6%;font-size:6.2cqw;letter-spacing:.12cqw;padding:0 3cqw 0 2cqw}
+  .mc .mc-type{left:13%;top:55.3%;width:61.5%;height:4.4%;text-transform:uppercase;font-size:3.9cqw;letter-spacing:.4cqw;padding:0 3cqw 0 2cqw}
+  .zones .mc>*:not(.mc-frame):not(.holo){outline:1px dashed rgba(0,255,255,.9);outline-offset:-1px;background-color:rgba(0,255,255,.12)}
   .mc .mc-text{left:11.2%;top:62.4%;width:79%;height:25.6%;overflow:hidden;color:var(--ink);font-size:4.6cqw;line-height:1.22;font-weight:500;padding:.4cqw .8cqw;white-space:normal;overflow-wrap:anywhere}
   .mc .mc-text p{margin:0}
   .mc .mc-div{display:flex;align-items:center;gap:1.2cqw;margin:1.6cqw 0;color:var(--ts)}
   .mc .mc-div::before,.mc .mc-div::after{content:"";flex:1;height:1px;background:currentColor;opacity:.7}
   .mc .mc-div span{font-size:3.4cqw;line-height:1}
   .mc .mc-text .fl{font-style:italic}
-  .mc .mc-coll{top:92.1%;height:2.6%;font-family:Marcellus,serif;font-size:2.3cqw;letter-spacing:.2cqw;text-transform:uppercase;color:var(--coll);display:flex;align-items:center;text-shadow:0 1px 2px #000;white-space:nowrap}
-  .mc .mc-coll.l{left:10.7%} .mc .mc-coll.r{right:10.2%}
+  /* collector strip: two fixed boxes either side of the centre emblem (measured on the templates: x 110–420 and 620–920 of 1024).
+     Each text is shrunk by fitCard() until it fits its own box, so neither can run into the emblem. */
+  .mc .mc-coll{top:91.9%;height:2.6%;font-family:Marcellus,serif;font-size:2.3cqw;letter-spacing:.08cqw;text-transform:uppercase;color:var(--coll);display:flex;align-items:center;text-shadow:0 1px 2px #000;white-space:nowrap;overflow:hidden}
+  .mc .mc-coll.l{left:10.7%;width:30.3%}
+  .mc .mc-coll.r{left:60.5%;width:29.3%;display:block;text-align:right;line-height:3.9cqw}   /* block + text-align (not flex-end) so overflow is measurable and shrinks instead of clipping on the left */
   .mc.tier-rare{--ts:#4a5d85}
   .mc.tier-legendary{--ts:#6b4a9a}
   .mc.tier-mythic{--ts:#b5581c}
@@ -609,7 +615,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-22-01';
+  const BUILD = '2026-09-22-04';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -681,7 +687,7 @@
       <div class="mc-title" data-text="${esc(c.name)}"><span>${esc(c.name)}</span></div>
       <div class="mc-type" data-text="${esc(c.kind || 'Enchantment')}"><span>${esc(c.kind || 'Enchantment')}</span></div>
       <div class="mc-text">${c.rules ? `<p>${esc(c.rules)}</p>` : ''}${c.rules && c.flavor ? '<div class="mc-div"><span>✦</span></div>' : ''}${c.flavor ? `<p class="fl">${esc(c.flavor)}</p>` : ''}</div>
-      <div class="mc-coll l">MGL · ${num} · ${TIERS[tier]}</div><div class="mc-coll r">The Mattlemore Golf League</div>
+      <div class="mc-coll l">MGL · ${num} · ${TIERS[tier]}</div><div class="mc-coll r">Mattlemore Golf League</div>
       ${top ? '<div class="holo"></div>' : ''}
     </div>${footHTML}</div>`;
   }
@@ -742,12 +748,7 @@
     };
     const t = card.querySelector('.tcg-text, .mc-text'), h = card.querySelector('.tcg-title, .mc-title'), k = card.querySelector('.mc-type');
     if (t) shrink(t, false, 6); if (h) shrink(h, true, 6); if (k) shrink(k, true, 5);
-    const l = card.querySelector('.mc-coll.l'), r = card.querySelector('.mc-coll.r');   // collector line: inside its strip, and the two texts must not collide
-    if (l && r) {
-      l.style.fontSize = r.style.fontSize = ''; let s = parseFloat(getComputedStyle(l).fontSize);
-      const bad = () => l.getBoundingClientRect().right + 6 > r.getBoundingClientRect().left || s > l.clientHeight * 0.85;
-      while (bad() && s > 4) { s -= 0.25; l.style.fontSize = r.style.fontSize = s + 'px'; }
-    }
+    card.querySelectorAll('.mc-coll').forEach(el => shrink(el, true, 4));   // collector texts: each fits its own box beside the emblem
   }
   const cardRO = window.ResizeObserver ? new ResizeObserver(entries => entries.forEach(e => { if (e.contentRect.width) fitCard(e.target); })) : null;
   function fitCards(root = document) {
@@ -759,6 +760,7 @@
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
   document.fonts?.addEventListener?.('loadingdone', () => fitCards());   // a font weight arriving after a card rendered changes its width — measure again
   window.__mgl = { tcgHTML, fitCards };                  // exposed for design previews in the browser console
+  if (/[?&]zones=1/.test(location.search)) document.documentElement.classList.add('zones');   // ?zones=1 outlines every text box on the cards (for tuning the frames)
   let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
   const views = ['board','standings','mine','cards','season','stag','admin'];
