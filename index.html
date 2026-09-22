@@ -202,7 +202,10 @@
   .mc>*{position:absolute}
   .mc .mc-art{left:7.8%;top:12.1%;width:85.5%;height:44.7%;object-fit:cover;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 40%,#2c2c2c,#0b0b0b 75%)}
   .mc .mc-art .crest{width:50%;height:50%;opacity:.85}
-  .mc .mc-frame{inset:0;width:100%;height:100%;pointer-events:none;filter:saturate(.78) brightness(.9) contrast(1.06)}   /* tone the painted frames down to match the gritty site */
+  /* The frame PNG is the only in-flow child: its intrinsic 2:3 sets the card's height in every browser, so the bars and the
+     cqw-sized lettering always agree. (Relying on aspect-ratio inside a flex column let some browsers squash the card.) */
+  .mc>.mc-frame{position:relative;display:block;width:100%;height:auto;pointer-events:none;filter:saturate(.78) brightness(.9) contrast(1.06)}   /* tone the painted frames down to match the gritty site */
+  .cardwrap>.mc{flex:none}
   /* lettering: the same beveled, extruded metal capitals as the site title (Cinzel; gradient face, bright top rim via ::before,
      dark extrusion + shadow via ::after). Silver on Common/Rare, gold on Legendary/Mythic. Both pseudo-elements repeat the text
      from data-text. No filter may sit on these elements themselves (Chromium drops background-clip:text fills when filtered). */
@@ -606,7 +609,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-17-27';
+  const BUILD = '2026-09-22-01';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -732,16 +735,18 @@
     if (!card.clientWidth) return;
     const shrink = (el, horizontal, min) => {              // start from the CSS (cqw) size, step down only while it overflows
       el.style.fontSize = ''; let s = parseFloat(getComputedStyle(el).fontSize);
-      const over = () => horizontal ? el.scrollWidth > el.clientWidth + 1 : el.scrollHeight > el.clientHeight + 1;
+      // single-line bars (title / type): must fit across AND the letters must sit inside the bar's height
+      // (Cinzel capitals are ~0.72em tall, plus the extruded shadow below them)
+      const over = () => horizontal ? (el.scrollWidth > el.clientWidth + 1 || s > el.clientHeight * 0.8) : el.scrollHeight > el.clientHeight + 1;
       while (over() && s > min) { s -= 0.5; el.style.fontSize = s + 'px'; }
     };
     const t = card.querySelector('.tcg-text, .mc-text'), h = card.querySelector('.tcg-title, .mc-title'), k = card.querySelector('.mc-type');
     if (t) shrink(t, false, 6); if (h) shrink(h, true, 6); if (k) shrink(k, true, 5);
-    const l = card.querySelector('.mc-coll.l'), r = card.querySelector('.mc-coll.r');   // the two collector texts must not collide
+    const l = card.querySelector('.mc-coll.l'), r = card.querySelector('.mc-coll.r');   // collector line: inside its strip, and the two texts must not collide
     if (l && r) {
       l.style.fontSize = r.style.fontSize = ''; let s = parseFloat(getComputedStyle(l).fontSize);
-      const collide = () => l.getBoundingClientRect().right + 6 > r.getBoundingClientRect().left;
-      while (collide() && s > 4.5) { s -= 0.25; l.style.fontSize = r.style.fontSize = s + 'px'; }
+      const bad = () => l.getBoundingClientRect().right + 6 > r.getBoundingClientRect().left || s > l.clientHeight * 0.85;
+      while (bad() && s > 4) { s -= 0.25; l.style.fontSize = r.style.fontSize = s + 'px'; }
     }
   }
   const cardRO = window.ResizeObserver ? new ResizeObserver(entries => entries.forEach(e => { if (e.contentRect.width) fitCard(e.target); })) : null;
