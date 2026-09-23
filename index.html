@@ -724,7 +724,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-23-02';
+  const BUILD = '2026-09-23-03';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1361,21 +1361,14 @@
     dcArt = { x: .5, y: .5, s: 1 }; dcArtImg = null; dcArtSrc = null; dcArtVideo = false; dcArtDims = null; dcArtDirty = false;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();
   }
-  // After saving an edit, stay on that card (form + preview intact) instead of wiping the form —
-  // a blank preview right after "Update" looked like the card had reverted.
-  function dcKeepEditing(id) {
-    dcLibId = id;
-    if (!dcArtVideo && dcArtImg && (dcArtDirty || dcImageData) && !$('dcFull').checked) { dcLibImage = bakeArt(); dcArt = { x: .5, y: .5, s: 1 }; loadArtImg(dcLibImage); }   // the crop is now baked in; start fresh from it
-    else if (dcImageData) dcLibImage = dcImageData;
-    dcImageData = null; dcArtSrc = null; dcArtDirty = false; $('dcImage').value = '';
-    $('dcTitle').textContent = `Editing “${$('dcName').value}”`; $('dcSave').textContent = 'Update library card'; $('dcCancel').classList.remove('hidden'); dcSync();
-  }
-  $('dcCancel').addEventListener('click', dcReset);
+  // (Sep 23 2026) Save and Deal both reset to a fresh form: George kept building a whole card only to find he had been editing an old one.
   $('dcSave').addEventListener('click', async () => {
     try {
       const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
-      msg('dcMsg', `${dcLibId ? 'Updated' : 'Added'} “${$('dcName').value}” ${dcLibId ? 'in' : 'to'} the library.`, 'ok');
-      dcKeepEditing(id); await loadLibrary();
+      const nm = $('dcName').value, was = dcLibId;
+      dcReset();                                          // George: after a save the form must be a fresh "new card" — never keep quietly editing the old one
+      msg('dcMsg', `${was ? 'Updated' : 'Added'} “${nm}” ${was ? 'in' : 'to'} the library. The form is ready for a new card — to change “${nm}” again, click Edit on it in the library.`, 'ok');
+      await loadLibrary();
     } catch (e) { msg('dcMsg', e.message, 'err'); }
   });
   ['dcName','dcKind','dcEffect','dcRules','dcFlavor','dcTier','dcCost'].forEach(id => $(id).addEventListener('input', dcSync));
@@ -1415,8 +1408,8 @@
       // every design goes through the library, so a dealt card can always be found and re-dealt
       const id = await rpc('admin_save_library_card', { p_admin_pin: apin(), p_id: dcLibId, ...dcFields() });
       await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: id, p_owner: owner });
-      msg('dcMsg', `Dealt “${name}” to ${owner}.`, 'ok');
-      if (dcLibId !== null) dcKeepEditing(dcLibId); else dcReset();
+      dcReset();
+      msg('dcMsg', `Dealt “${name}” to ${owner}. The form is ready for a new card.`, 'ok');
       await Promise.all([loadAdminCards(), loadLibrary()]);
     } catch (e) { msg('dcMsg', e.message, 'err'); }
   });
