@@ -166,6 +166,8 @@
   /* ---- cards (TCG frames — mirrors the league's printed cards: black body, gold filigree, parchment panels) ---- */
   .hand{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:18px}
   .hand.mini{grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px}
+  .lib-scroll{max-height:min(78vh,1100px);overflow:auto;padding:4px 8px 4px 2px;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(0,0,0,.25);scrollbar-gutter:stable}   /* the library scrolls on its own, 8 cards a page */
+  .lib-scroll #library{grid-template-columns:repeat(4,minmax(0,1fr))} @media(max-width:1000px){.lib-scroll #library{grid-template-columns:repeat(2,minmax(0,1fr))}}
   /* Sizes are in cqw (percent of card width) so every card scales like a print: title bar ≈7% of height,
      art ≈46%, type line ≈6%, text box ≈31%, measured off the league's painted cards. */
   .tcg{--parch:#e4d7b3;--parch-2:#d2c193;--parch-hi:#efe5c8;--cgold:#c29d52;--cgold-2:#6b4f1d;--frame:#2a1d0a;--inkc:#1b1408;
@@ -593,10 +595,11 @@
         <div class="f sm"><label>Effect</label><select id="libEffect"><option value="">All effects</option></select></div>
         <div class="f sm"><label>Status</label><select id="libStatus">
           <option value="active">Active (not retired)</option><option value="never">Never dealt</option><option value="dealt">Dealt at least once</option>
-          <option value="hands">In someone's hand now</option><option value="review">Needs review (drafted for you)</option><option value="retired">Retired</option><option value="all">Everything</option></select></div>
+          <option value="hands">In someone's hand now</option><option value="review">Needs review (drafted for you)</option><option value="noart">No art yet</option><option value="retired">Retired</option><option value="all">Everything</option></select></div>
       </div>
       <div class="hint" id="libCount" style="margin:0 0 10px"></div>
-      <div class="hand mini" id="library"></div>
+      <div class="lib-scroll"><div class="hand mini" id="library"></div></div>
+      <div class="row lib-pager" id="libPager" style="align-items:center;justify-content:center;gap:12px;margin-top:10px"><button class="btn ghost" id="libPrev" style="padding:6px 12px">‹ Prev</button><span class="muted" id="libPage"></span><button class="btn ghost" id="libNext" style="padding:6px 12px">Next ›</button></div>
       <div id="libMsg"></div>
     </div>
 
@@ -724,7 +727,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-23-05';
+  const BUILD = '2026-09-23-06';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -890,7 +893,7 @@
   }
   if (document.fonts?.ready) document.fonts.ready.then(() => fitCards());
   document.fonts?.addEventListener?.('loadingdone', () => fitCards());   // a font weight arriving after a card rendered changes its width — measure again
-  window.__mgl = { tcgHTML, fitCards, openPackUI, dcSetArt: src => { dcArtVideo = false; dcArtSrc = src; dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; dcArtImg = new Image(); dcArtImg.onload = () => { dcArtDims = { w: dcArtImg.naturalWidth, h: dcArtImg.naturalHeight }; dcSync(); }; dcArtImg.src = src; }, dcImageOut: () => dcImageOut(), dcArtState: () => dcArt };   // exposed for design previews / tests in the browser console
+  window.__mgl = { tcgHTML, fitCards, openPackUI, dcSetArt: src => { dcArtVideo = false; dcArtSrc = src; dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; dcArtImg = new Image(); dcArtImg.onload = () => { dcArtDims = { w: dcArtImg.naturalWidth, h: dcArtImg.naturalHeight }; dcSync(); }; dcArtImg.src = src; }, dcImageOut: () => dcImageOut(), dcArtState: () => dcArt, libTest: rows => { libRows = rows; libPageNo = 0; renderLibrary(); } };   // exposed for design previews / tests in the browser console
   if (/[?&]zones=1/.test(location.search)) document.documentElement.classList.add('zones');   // ?zones=1 outlines every text box on the cards (for tuning the frames)
   let fitTimer; window.addEventListener('resize', () => { clearTimeout(fitTimer); fitTimer = setTimeout(() => fitCards(), 150); });
 
@@ -1425,14 +1428,20 @@
     if (q && ![l.name, l.kind, l.rules, l.flavor].some(s => (s || '').toLowerCase().includes(q))) return false;
     if (tier && (l.tier || 'common') !== tier) return false;
     if (eff && l.effect !== eff) return false;
-    return st === 'all' ? true : st === 'retired' ? l.retired : st === 'review' ? !l.retired && l.review : st === 'never' ? !l.retired && l.times_dealt === 0
+    return st === 'all' ? true : st === 'retired' ? l.retired : st === 'review' ? !l.retired && l.review : st === 'noart' ? !l.retired && !l.image : st === 'never' ? !l.retired && l.times_dealt === 0
          : st === 'dealt' ? !l.retired && l.times_dealt > 0 : st === 'hands' ? !l.retired && l.in_play > 0 : !l.retired;
   };
-  ['libSearch','libTier','libEffect','libStatus'].forEach(id => $(id).addEventListener('input', () => renderLibrary()));
+  ['libSearch','libTier','libEffect','libStatus'].forEach(id => $(id).addEventListener('input', () => { libPageNo = 0; renderLibrary(); }));
+  $('libPrev').addEventListener('click', () => { libPageNo--; renderLibrary(); document.querySelector('.lib-scroll').scrollTop = 0; });
+  $('libNext').addEventListener('click', () => { libPageNo++; renderLibrary(); document.querySelector('.lib-scroll').scrollTop = 0; });
+  const LIB_PAGE = 8; let libPageNo = 0;
   function renderLibrary() {
     const ownerOpts = owners.map(o => `<option>${esc(o.name)}</option>`).join('');
-    const shown = libRows.filter(libFilter);
-    $('libCount').textContent = libRows.length ? `Showing ${shown.length} of ${libRows.length} designs` : '';
+    const all = libRows.filter(libFilter), pages = Math.max(1, Math.ceil(all.length / LIB_PAGE));
+    libPageNo = Math.min(libPageNo, pages - 1); const shown = all.slice(libPageNo * LIB_PAGE, libPageNo * LIB_PAGE + LIB_PAGE);
+    $('libCount').textContent = libRows.length ? `${all.length} of ${libRows.length} designs match` : '';
+    $('libPage').textContent = all.length ? `${libPageNo * LIB_PAGE + 1}–${libPageNo * LIB_PAGE + shown.length} of ${all.length} · page ${libPageNo + 1} / ${pages}` : 'No cards match';
+    $('libPrev').disabled = libPageNo === 0; $('libNext').disabled = libPageNo >= pages - 1; $('libPager').classList.toggle('hidden', !libRows.length);
     $('library').innerHTML = shown.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
       <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b>${l.max_copies ? ` / ${l.max_copies}` : ''} in hands${l.max_copies && l.in_play >= l.max_copies ? ' · <span class="tag lock">capped</span>' : ''}${l.review ? ' · <span class="tag lock" title="drafted by the scorer; approve or edit it before it can be dealt">needs review</span>' : ''}${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
       <div class="row">
