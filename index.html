@@ -274,6 +274,17 @@
   @keyframes holoTwinkle{0%,100%{opacity:0}45%{opacity:.6;background-position:0 0,11px 17px}55%{opacity:.6;background-position:2px 1px,13px 18px}}
   @keyframes holoSheen{0%{background-position:0% 0%}50%{background-position:100% 100%}100%{background-position:0% 0%}}
   /* ---- booster packs: sealed pack buttons, history, and the full-screen opening ---- */
+  /* wrapper physics shared by the small sealed pack and the big one in the opening: heat-sealed crimp bands top and bottom
+     (fine vertical pleats + a crease line where the band meets the body) and a soft bulge where the card stack pushes the foil */
+  .pack-skin::before,.pack-skin::after{content:"";position:absolute;left:0;right:0;height:9.5%;z-index:1;pointer-events:none;
+    background:repeating-linear-gradient(90deg,rgba(255,255,255,.14) 0 2px,rgba(0,0,0,.28) 2px 6px),linear-gradient(180deg,rgba(0,0,0,.35),rgba(0,0,0,.12))}
+  .pack-skin::before{top:0;box-shadow:0 1px 0 rgba(0,0,0,.75),0 2px 0 rgba(255,255,255,.16),0 6px 10px rgba(0,0,0,.35)}
+  .pack-skin::after{bottom:0;box-shadow:0 -1px 0 rgba(0,0,0,.75),0 -2px 0 rgba(255,255,255,.16),0 -6px 10px rgba(0,0,0,.35)}
+  .pack-bulge{position:absolute;left:11%;right:11%;top:15%;bottom:15%;border-radius:6px;pointer-events:none;
+    background:linear-gradient(90deg,rgba(0,0,0,.22) 0,rgba(255,255,255,.07) 30%,rgba(255,255,255,.13) 50%,rgba(255,255,255,.07) 70%,rgba(0,0,0,.22) 100%);
+    box-shadow:inset 0 0 22px rgba(255,255,255,.05),0 0 0 1px rgba(255,255,255,.06),-3px 0 6px -3px rgba(0,0,0,.6),3px 0 6px -3px rgba(0,0,0,.6)}
+  .pack-bulge::before,.pack-bulge::after{content:"";position:absolute;left:-2%;right:-2%;height:2px;background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent)}
+  .pack-bulge::before{top:-1px} .pack-bulge::after{bottom:-1px;background:linear-gradient(90deg,transparent,rgba(0,0,0,.5),transparent)}
   /* sealed booster packs waiting in My Cards: styled as foil wrappers with crimped ends, same look as the pack in the opening */
   .sealed-row{display:flex;flex-wrap:wrap;gap:16px;margin-bottom:12px}
   .sealed{position:relative;width:172px;aspect-ratio:2/3;padding:0;border:0;cursor:pointer;color:var(--text);font:inherit;text-align:center;overflow:hidden;
@@ -287,6 +298,7 @@
   .sealed b{font-family:var(--display);font-weight:900;letter-spacing:.14em;text-transform:uppercase;font-size:12px;color:#f6d98a;text-shadow:0 1px 4px #000;position:relative}
   .sealed small{font-family:"EB Garamond",serif;font-size:12px;color:#e8e0cc;text-shadow:0 1px 3px #000;position:relative;padding:0 10px}
   .sealed em{font-style:normal;font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.8);position:relative;margin-top:4px}
+  .sealed>b,.sealed>small,.sealed>em,.sealed-crest,.po-pack .po-crest,.po-pack-txt,.po-hint{z-index:2;position:relative} .po-hint{position:absolute}
   @keyframes sealedGlow{0%,100%{filter:drop-shadow(0 10px 22px rgba(0,0,0,.7)) drop-shadow(0 0 14px rgba(140,90,255,.3))}50%{filter:drop-shadow(0 10px 22px rgba(0,0,0,.7)) drop-shadow(0 0 30px rgba(170,120,255,.6))}}
   .pack-history summary{cursor:pointer;color:var(--muted);font-size:14px} .pack-row{display:flex;align-items:center;gap:12px;justify-content:space-between;padding:8px 0;border-top:1px solid rgba(255,255,255,.07);flex-wrap:wrap}
   #packOverlay{position:fixed;inset:0;z-index:100000;background:radial-gradient(ellipse at 50% 40%,#28184a,#04060a 70%);display:flex;align-items:flex-start;justify-content:center;overflow:auto;animation:fadeIn .3s}
@@ -298,7 +310,7 @@
   .po-pack .po-crest{width:60%;height:auto;filter:drop-shadow(0 0 18px rgba(255,255,255,.35));position:relative}
   .po-pack{clip-path:polygon(0.00% 0%,6.25% 2.2%,12.50% 0%,18.75% 2.2%,25.00% 0%,31.25% 2.2%,37.50% 0%,43.75% 2.2%,50.00% 0%,56.25% 2.2%,62.50% 0%,68.75% 2.2%,75.00% 0%,81.25% 2.2%,87.50% 0%,93.75% 2.2%,100.00% 0%,100.00% 100%,93.75% 97.8%,87.50% 100%,81.25% 97.8%,75.00% 100%,68.75% 97.8%,62.50% 100%,56.25% 97.8%,50.00% 100%,43.75% 97.8%,37.50% 100%,31.25% 97.8%,25.00% 100%,18.75% 97.8%,12.50% 100%,6.25% 97.8%,0.00% 100%);border-radius:0}
   .po-pack-txt{font-family:var(--display);font-weight:900;letter-spacing:.18em;text-align:center;color:#f6d98a;text-shadow:0 2px 6px #000;font-size:clamp(13px,2vw,18px);line-height:1.35}
-  .po-hint{position:absolute;bottom:14px;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.75)}
+  .po-hint{position:absolute;bottom:13%;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.75)}
   .po-foil{position:absolute;inset:-40%;background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.35) 48%,rgba(120,255,220,.25) 52%,transparent 65%);animation:foil 3s linear infinite;pointer-events:none}
   @keyframes foil{from{transform:translateX(-40%) rotate(8deg)}to{transform:translateX(40%) rotate(8deg)}}
   @keyframes packIdle{0%,100%{transform:translateY(0) rotate(-1deg)}50%{transform:translateY(-8px) rotate(1deg)}}
@@ -712,7 +724,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-23-01';
+  const BUILD = '2026-09-23-02';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1076,8 +1088,8 @@
       const packs = {}; cards.filter(c => c.pack_id).forEach(c => (packs[c.pack_id] = packs[c.pack_id] || { id: c.pack_id, t: c.pack_tournament, when: c.pack_awarded, revealed: !!c.pack_revealed, cards: [] }).cards.push(c));
       const packList = Object.values(packs).sort((a, b) => b.id - a.id), sealed = packList.filter(p => !p.revealed), opened = packList.filter(p => p.revealed);
       packUI.name = name; packUI.pin = pin; packUI.packs = packs;
-      $('packNote').innerHTML = (sealed.length ? `<div class="sealed-row">${sealed.map(p => `<button class="sealed" data-pack="${p.id}" title="Open this pack">
-          <div class="sealed-foil"></div><img class="sealed-crest" src="assets/crest.png" alt=""><b>Booster pack</b><small>${esc(p.t || 'Tournament')} · ${p.cards.length} cards</small><em>Tap to open</em></button>`).join('')}</div>` : '') +
+      $('packNote').innerHTML = (sealed.length ? `<div class="sealed-row">${sealed.map(p => `<button class="sealed pack-skin" data-pack="${p.id}" title="Open this pack">
+          <div class="pack-bulge"></div><div class="sealed-foil"></div><img class="sealed-crest" src="assets/crest.png" alt=""><b>Booster pack</b><small>${esc(p.t || 'Tournament')} · ${p.cards.length} cards</small><em>Tap to open</em></button>`).join('')}</div>` : '') +
         (opened.length ? `<details class="pack-history"><summary>Pack history · ${opened.length} opened</summary>${opened.map(p => { const byTier = {}; p.cards.forEach(c => byTier[c.tier] = (byTier[c.tier] || 0) + 1);
           return `<div class="pack-row"><span>📦 ${esc(p.t || 'Tournament')} <small class="muted">${p.when ? fmtWhen(p.when) : ''}</small></span><span>${Object.keys(TIERS).filter(t => byTier[t]).map(t => `<span class="tag tier-${t}">${byTier[t]} ${TIERS[t]}</span>`).join(' ')}</span><button class="btn ghost replay" data-pack="${p.id}" style="padding:5px 10px">Replay</button></div>`; }).join('')}</details>` : '');
       $('packNote').classList.toggle('hidden', !sealed.length && !opened.length);
@@ -1122,7 +1134,7 @@
     const ov = $('packOverlay');
     ov.innerHTML = `<div class="po-stage">
       <div class="po-title">${replay ? 'Replay · ' : ''}Booster pack · ${esc(p.t || 'Tournament')}</div>
-      <div class="po-pack" role="button" tabindex="0"><div class="po-foil"></div><img class="po-crest" src="assets/crest.png" alt=""><div class="po-pack-txt">MATTLEMORE<br>GOLF LEAGUE</div><div class="po-hint">Tap to open</div></div>
+      <div class="po-pack pack-skin" role="button" tabindex="0"><div class="pack-bulge"></div><div class="po-foil"></div><img class="po-crest" src="assets/crest.png" alt=""><div class="po-pack-txt">MATTLEMORE<br>GOLF LEAGUE</div><div class="po-hint">Tap to open</div></div>
       <div class="po-cards hidden">${p.cards.map((c, i) => `<div class="po-slot" style="--i:${i}"><div class="po-card tier-${TIERS[c.tier] ? c.tier : 'common'}" data-i="${i}"><div class="po-inner">
           <div class="po-back"><img class="po-crest" src="assets/crest.png" alt=""><span>MGL</span></div>
           <div class="po-front">${tcgHTML(c, null, true)}</div></div></div></div>`).join('')}</div>
