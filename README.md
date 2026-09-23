@@ -101,6 +101,13 @@ happened (e.g. "Ryder Die: beat Mike (×2)"). At most three cards per owner per 
 swaps aimed at their holder. A mulligan lets that owner reuse a golfer that week. "Custom" cards have no automatic
 math — apply them by editing the winnings.
 
+## Backups
+
+The database takes its own snapshot every morning and keeps three weeks of them. On top of that, Commissioner → Settings →
+**Download backup** saves one file with everything (owners, schedule, every card design with its art, dealt cards, packs,
+picks, champions). Do that after any big batch of card work and keep the file off the site — a copy also lives in this
+repo under `backups/`. If the worst happens, that file rebuilds the league.
+
 ## Next season
 
 Commissioner tab → **Schedule**: add each tournament with its start date, lock time, purse and multiplier

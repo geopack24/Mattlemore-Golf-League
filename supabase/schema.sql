@@ -112,7 +112,14 @@ alter table cards        add column if not exists exempt_limit boolean not null 
 alter table card_library add column if not exists cost int not null default 0 check (cost between 0 and 3);
 alter table card_library add column if not exists max_copies int check (max_copies is null or max_copies >= 1);   -- cap on copies held at once (null = unlimited); RULES.md 18
 alter table tournaments add column if not exists is_major boolean not null default false;
-alter table card_library add column if not exists review boolean not null default false;   -- drafted by the scorer, not yet reviewed by the commissioner: shown in the library, never dealt   -- the four majors + THE PLAYERS count as majors for all card purposes (RULES.md 19)
+alter table card_library add column if not exists review boolean not null default false;   -- drafted by the scorer, not yet reviewed by the commissioner: shown in the library, never dealt
+create table if not exists backups (             -- daily in-database snapshots of everything (see _export_all); the commissioner can also download one
+  id        serial primary key,
+  taken_at  timestamptz not null default now(),
+  kind      text not null default 'auto',
+  data      jsonb not null
+);
+alter table backups enable row level security;   -- the four majors + THE PLAYERS count as majors for all card purposes (RULES.md 19)
 alter table cards        add column if not exists cost int not null default 0 check (cost between 0 and 3);
 -- Booster packs (Sep 22 2026): one pack of 5 random library cards per owner at the end of every tournament
 create table if not exists packs (
@@ -549,6 +556,60 @@ begin
   return net.http_post(url := url, body := '{}'::jsonb,
                        headers := jsonb_build_object('Content-Type', 'application/json', 'x-announce-key', akey),
                        timeout_milliseconds := 30000);
+end $$;
+
+-- ---------- Backups -----------------------------------------------------------
+-- Everything the league would need to rebuild: owners (no PIN hashes), schedule, the card library with art, dealt cards,
+-- packs, picks, champions and non-secret settings. Secrets (PIN hash, Discord webhook, announcer key) are deliberately left out.
+create or replace function _export_all() returns jsonb
+language sql stable security definer set search_path = public, extensions as $$
+  select jsonb_build_object(
+    'exported_at',  now(),
+    'owners',       (select coalesce(jsonb_agg((to_jsonb(o) - 'pin_hash') order by o.id), '[]') from owners o),
+    'tournaments',  (select coalesce(jsonb_agg(to_jsonb(t) order by t.id), '[]') from tournaments t),
+    'card_library', (select coalesce(jsonb_agg(to_jsonb(l) order by l.id), '[]') from card_library l),
+    'cards',        (select coalesce(jsonb_agg(to_jsonb(c) order by c.id), '[]') from cards c),
+    'packs',        (select coalesce(jsonb_agg(to_jsonb(p) order by p.id), '[]') from packs p),
+    'picks',        (select coalesce(jsonb_agg(to_jsonb(p) order by p.id), '[]') from picks p),
+    'champions',    (select coalesce(jsonb_agg(to_jsonb(c) order by c.season), '[]') from champions c),
+    'settings',     (select coalesce(jsonb_object_agg(key, value), '{}') from settings where key not in ('admin_pin_hash', 'discord_webhook', 'announce_key')));
+$$;
+
+create or replace function admin_export(p_admin_pin text) returns jsonb
+language plpgsql stable security definer set search_path = public, extensions as $$
+begin perform _check_admin(p_admin_pin); return _export_all(); end $$;
+
+-- pg_cron, daily: keep the last 21 snapshots inside the database (protects against deletes/mistakes; the downloaded file protects against losing the project)
+create or replace function snapshot_backup() returns int
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  insert into backups(kind, data) values ('auto', _export_all());
+  delete from backups where id not in (select id from backups order by taken_at desc limit 21);
+  return (select count(*) from backups);
+end $$;
+
+create or replace function admin_backup_info(p_admin_pin text)
+returns table (taken_at timestamptz, kind text, size_kb int, designs int, cards int)
+language plpgsql stable security definer set search_path = public, extensions as $$
+begin
+  perform _check_admin(p_admin_pin);
+  return query select b.taken_at, b.kind, (pg_column_size(b.data) / 1024)::int, jsonb_array_length(b.data->'card_library'), jsonb_array_length(b.data->'cards')
+                 from backups b order by b.taken_at desc limit 21;
+end $$;
+
+-- Disaster recovery for the library: upsert designs from an export's card_library array (same ids), then fix the sequence.
+create or replace function admin_import_library(p_admin_pin text, p_rows jsonb) returns int
+language plpgsql security definer set search_path = public, extensions as $$
+declare n int;
+begin
+  perform _check_admin(p_admin_pin);
+  insert into card_library select * from jsonb_populate_recordset(null::card_library, p_rows)
+  on conflict (id) do update set name = excluded.name, kind = excluded.kind, effect = excluded.effect, params = excluded.params, rules = excluded.rules,
+     flavor = excluded.flavor, image = excluded.image, retired = excluded.retired, full_card = excluded.full_card, tier = excluded.tier,
+     exempt_limit = excluded.exempt_limit, cost = excluded.cost, max_copies = excluded.max_copies, review = excluded.review, updated_at = now();
+  get diagnostics n = row_count;
+  perform setval(pg_get_serial_sequence('card_library', 'id'), coalesce((select max(id) from card_library), 1));
+  return n;
 end $$;
 
 -- ---------- Booster packs (RULES.md) -------------------------------------------
@@ -1303,6 +1364,8 @@ begin
   perform cron.schedule('sync-scores', '*/10 * * * *', 'select public.sync_scores()');
   if exists (select 1 from cron.job where jobname = 'award-packs') then perform cron.unschedule('award-packs'); end if;
   perform cron.schedule('award-packs', '17 * * * *', 'select public.award_due_packs()');
+  if exists (select 1 from cron.job where jobname = 'backup-daily') then perform cron.unschedule('backup-daily'); end if;
+  perform cron.schedule('backup-daily', '30 8 * * *', 'select public.snapshot_backup()');
 exception when others then raise notice 'pg_cron not available: %', sqlerrm;
 end $$;
 
@@ -1314,7 +1377,7 @@ revoke execute on function _oname(int), _note(jsonb, text, text), scored_points(
 drop function if exists _discord_post(text);
 revoke execute on function _discord_message(int), _discord_cards(int), _discord_post(int), announce_locked() from public, anon, authenticated;
 revoke execute on function _autofill_winnings(int), sync_scores(), _discord_text(text), _award_packs(int), award_due_packs(), _packs_message(int),
-                           _pack_tier(int), _pick_library_card(text), _copies_held(int), _at_copy_cap(card_library) from public, anon, authenticated;
+                           _pack_tier(int), _pick_library_card(text), _copies_held(int), _at_copy_cap(card_library), _export_all(), snapshot_backup() from public, anon, authenticated;
 grant execute on function _discord_message(int), _discord_cards(int), _autofill_winnings(int), _award_packs(int) to service_role;   -- the edge functions
 grant all on live_scores, packs to service_role;
 grant execute on function
@@ -1322,7 +1385,7 @@ grant execute on function
   revealed_card_names(), revealed_card(text), tournament_penalties(int), live_board(int), admin_autofill_winnings(text, int), open_pack(text, text, int),
   my_cards(text, text), my_constraints(text, text, int), play_card(text, text, int, int, text), unplay_card(text, text, int),
   admin_deal_card(text, text, text, text, text, jsonb, text, text, text, boolean), admin_list_cards(text), admin_revoke_card(text, int),
-  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int, int, boolean), admin_award_packs(text, int), admin_review_library_card(text, int),
+  admin_list_library(text), admin_save_library_card(text, int, text, text, text, jsonb, text, text, text, boolean, text, boolean, int, int, boolean), admin_award_packs(text, int), admin_review_library_card(text, int), admin_export(text), admin_backup_info(text), admin_import_library(text, jsonb),
   admin_retire_library_card(text, int, boolean), admin_deal_from_library(text, int, text),
   admin_announce(text, int), admin_set_discord(text, text), admin_discord_status(text),
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),

@@ -65,6 +65,9 @@ George is accumulating league rulings; **every new rule goes into `RULES.md` fir
 ## Workflow for card effects (Sep 23 2026)
 George's process: he designs every card as **custom** (the Effect select is hidden in the designer, defaulting to `custom`; existing cards keep their effect when edited) and writes the rules text. When he says "get ready to calculate the season", pull `select id,name,kind,rules from card_library where effect='custom'`, design an effect for each (new `EFFECTS` entries / engine cases / params), reclassify the rows, and report back. Goal: the site scores 100% of the league with no manual adjustments. Known pending: Ring of the Covenant (no rules text yet), Freddy "Boom Boom" Couples (−1 stroke per 350+ yd drive on the final day — needs a shot-distance data source; ESPN leaderboard has none).
 
+## Backups (Sep 23 2026)
+Supabase free tier has no automatic backups, so: (1) `_export_all()` builds one JSON of owners (no PIN hashes), tournaments, card_library (with art data URLs), cards, packs, picks, champions, non-secret settings; (2) pg_cron `backup-daily` (08:30 UTC) → `snapshot_backup()` stores it in the `backups` table, keeping the last 21 (protects against mistakes, not project loss); (3) Commissioner → Settings → **Download backup** (`admin_export`) saves `mattlemore-backup-YYYY-MM-DD.json` to George's PC, status line from `admin_backup_info`; (4) I also commit an offsite copy to `backups/backup-YYYY-MM-DD.json` in the repo — refresh it after each big batch of cards (`select _export_all()::text` via the Management API; ~4 MB with art). Restore: `admin_import_library(pin, export.card_library)` upserts designs by id; other tables can be restored by SQL from the same file.
+
 ## Open questions for GP
 - Owner names live in sheet tabs not yet shared (add via Commissioner tab or `admin_set_owner`).
 - 2027 purses: seeded with 2026 values; update when the Tour publishes them (cosmetic only).

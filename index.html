@@ -709,6 +709,10 @@
         <div class="f sm"><label>New commissioner PIN</label><input id="newAdminPin" type="password" inputmode="numeric"></div>
         <div><button class="btn ghost" id="newAdminPinBtn">Change PIN</button></div>
       </div>
+      <div class="row" style="margin-top:14px;align-items:center">
+        <div><button class="btn" id="bkDownload" title="Everything: owners, schedule, the whole card library with art, dealt cards, packs, picks, champions">Download backup</button></div>
+        <span class="hint" id="bkInfo" style="margin:0">Backups: checking…</span>
+      </div>
       <div class="row" style="margin-top:14px">
         <div class="f"><label>Discord webhook URL</label><input id="setDiscord" placeholder="https://discord.com/api/webhooks/…" autocomplete="off"></div>
         <div><button class="btn ghost" id="setDiscordBtn">Connect Discord</button></div>
@@ -727,7 +731,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-23-06';
+  const BUILD = '2026-09-23-07';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1243,8 +1247,24 @@
     $('tSeason').value = s; $('setSeason').value = s;
     if (!$('chSeason').value) $('chSeason').value = s - 1;
     $('chOwners').innerHTML = owners.map(o => `<option value="${esc(o.name)}">`).join('');
-    dcSync(); loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); loadDiscordStatus().catch(() => {});
+    dcSync(); loadAdminCards().catch(() => {}); loadLibrary().catch(() => {}); loadDiscordStatus().catch(() => {}); loadBackupInfo().catch(() => {});
   }
+  // ---- backups ----
+  async function loadBackupInfo() {
+    if (!$('adminPin').value) return;
+    const rows = await rpc('admin_backup_info', { p_admin_pin: apin() });
+    $('bkInfo').innerHTML = rows.length
+      ? `The database keeps a snapshot every morning (${rows.length} on file, latest ${fmtWhen(rows[0].taken_at)}: ${rows[0].designs} designs, ${rows[0].cards} dealt cards). Download one now and then whenever you finish a batch of cards — keep the file somewhere off this site.`
+      : 'No snapshots yet — the first automatic one runs tomorrow morning. Download one now.';
+  }
+  $('bkDownload').addEventListener('click', async () => {
+    try {
+      const data = await rpc('admin_export', { p_admin_pin: apin() });
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' }), a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = `mattlemore-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      msg('settingsMsg', `Backup downloaded (${(blob.size / 1048576).toFixed(1)} MB) — ${data.card_library.length} designs, ${data.cards.length} dealt cards. Keep it somewhere safe.`, 'ok');
+    } catch (e) { msg('settingsMsg', e.message, 'err'); }
+  });
   // ---- Discord ----
   async function loadDiscordStatus() {
     if (!$('adminPin').value) return;
