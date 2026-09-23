@@ -612,7 +612,7 @@
         <div class="f sm"><label>Tee cost</label><select id="dcCost"><option value="0">0 · free</option><option value="1">1 tee</option><option value="2">2 tees</option><option value="3">3 tees</option></select></div>
       </div>
       <div class="row" style="margin-top:10px">
-        <div class="f"><label>Effect</label><select id="dcEffect"></select></div>
+        <div class="f hidden"><label>Effect</label><select id="dcEffect"></select></div>   <!-- hidden (Sep 23 2026): all cards are filed as custom; effects are wired up on the backend before the season -->
       </div>
       <div class="row" id="dcParams" style="margin-top:10px"></div>
       <div class="row" style="margin-top:10px">
@@ -724,7 +724,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-23-03';
+  const BUILD = '2026-09-23-04';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -775,7 +775,7 @@
                   sum: p => `${fmtStrokes(p.n ?? 1)} on the target's golfer, applied automatically on the live leaderboard` },
     shield:     { label: 'Shield', params: [], sum: () => "Rivals' cards cannot touch me this week" },
     mulligan:   { label: 'Mulligan', params: [], sum: () => 'Reuse a golfer this week' },
-    custom:     { label: 'Custom (commissioner rules on it at results time)', params: [], sum: () => 'Commissioner rules on it when entering results' },
+    custom:     { label: 'Custom (scoring wired up by the scorer before the season)', params: [], sum: () => 'Scoring rule to be wired up before the season' },
   };
   const TIERS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
   const tierTag = t => `<span class="tag tier-${TIERS[t] ? t : 'common'}">${TIERS[t] || 'Common'}</span>`;
@@ -1275,7 +1275,7 @@
   // ---- deal cards ----
   let dcImageData = null, dcLibId = null, dcLibImage = null;
   let dcArt = { x: .5, y: .5, s: 1 }, dcArtImg = null, dcArtSrc = null, dcArtVideo = false, dcArtDims = null, dcArtDirty = false;   // art pan/zoom editor state   // dcLibId: library card being edited; dcLibImage: its current art (preview only)
-  $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
+  $('dcEffect').innerHTML = Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join(''); $('dcEffect').value = 'custom';
   $('dcTier').innerHTML = Object.entries(TIERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('libTier').innerHTML += Object.entries(TIERS).map(([k, v]) => `<option value="${k}">${v}</option>`).join('');
   $('libEffect').innerHTML += Object.entries(EFFECTS).map(([k, e]) => `<option value="${k}">${esc(e.label)}</option>`).join('');
@@ -1356,7 +1356,7 @@
   $('dcZoom').addEventListener('input', () => { dcArt.s = Number($('dcZoom').value); dcArtDirty = true; applyArt(); });
   $('dcArtReset').addEventListener('click', () => { dcArt = { x: .5, y: .5, s: 1 }; dcArtDirty = true; applyArt(); });
   function dcReset() {
-    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcMajorOnly').checked = false; $('dcCost').value = '0'; $('dcMax').value = ''; $('dcEffect').selectedIndex = 0; $('dcTier').value = 'common';
+    ['dcName','dcRules','dcFlavor','dcImage'].forEach(id => $(id).value = ''); $('dcKind').value = 'Enchantment'; $('dcFull').checked = false; $('dcExempt').checked = false; $('dcMajorOnly').checked = false; $('dcCost').value = '0'; $('dcMax').value = ''; $('dcEffect').value = 'custom'; $('dcTier').value = 'common';
     $('dcParams').dataset.effect = ''; dcImageData = null; dcLibId = null; dcLibImage = null;
     dcArt = { x: .5, y: .5, s: 1 }; dcArtImg = null; dcArtSrc = null; dcArtVideo = false; dcArtDims = null; dcArtDirty = false;
     $('dcTitle').textContent = 'Design a card'; $('dcSave').textContent = 'Save to library'; $('dcCancel').classList.add('hidden'); dcSync();

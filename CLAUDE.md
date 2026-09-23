@@ -59,6 +59,9 @@ George is accumulating league rulings; **every new rule goes into `RULES.md` fir
 ## Majors (Sep 22 2026, RULES.md 19)
 `tournaments.is_major` — set by a regex update at the END of schema.sql (Masters, PGA Championship, US Open, British/The Open, PLAYERS) and editable per tournament in Schedule (`admin_upsert_tournament(..., p_is_major)`). George's rule: **THE PLAYERS counts as a major for all card purposes.** Cards can carry `params.major_only=true` (designer checkbox "can only be played at a major"): `play_card` refuses non-majors, My Cards only offers majors in the Play-on list, the foot shows a "majors only" tag, This Week shows a "Major" tag. Any future major-related effect should read `tournaments.is_major`, never the name.
 
+## Workflow for card effects (Sep 23 2026)
+George's process: he designs every card as **custom** (the Effect select is hidden in the designer, defaulting to `custom`; existing cards keep their effect when edited) and writes the rules text. When he says "get ready to calculate the season", pull `select id,name,kind,rules from card_library where effect='custom'`, design an effect for each (new `EFFECTS` entries / engine cases / params), reclassify the rows, and report back. Goal: the site scores 100% of the league with no manual adjustments. Known pending: Ring of the Covenant (no rules text yet), Freddy "Boom Boom" Couples (−1 stroke per 350+ yd drive on the final day — needs a shot-distance data source; ESPN leaderboard has none).
+
 ## Open questions for GP
 - Owner names live in sheet tabs not yet shared (add via Commissioner tab or `admin_set_owner`).
 - 2027 purses: seeded with 2026 values; update when the Tour publishes them (cosmetic only).
