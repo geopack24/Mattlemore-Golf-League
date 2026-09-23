@@ -593,7 +593,7 @@
         <div class="f sm"><label>Effect</label><select id="libEffect"><option value="">All effects</option></select></div>
         <div class="f sm"><label>Status</label><select id="libStatus">
           <option value="active">Active (not retired)</option><option value="never">Never dealt</option><option value="dealt">Dealt at least once</option>
-          <option value="hands">In someone's hand now</option><option value="retired">Retired</option><option value="all">Everything</option></select></div>
+          <option value="hands">In someone's hand now</option><option value="review">Needs review (drafted for you)</option><option value="retired">Retired</option><option value="all">Everything</option></select></div>
       </div>
       <div class="hint" id="libCount" style="margin:0 0 10px"></div>
       <div class="hand mini" id="library"></div>
@@ -724,7 +724,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-23-04';
+  const BUILD = '2026-09-23-05';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -1425,7 +1425,7 @@
     if (q && ![l.name, l.kind, l.rules, l.flavor].some(s => (s || '').toLowerCase().includes(q))) return false;
     if (tier && (l.tier || 'common') !== tier) return false;
     if (eff && l.effect !== eff) return false;
-    return st === 'all' ? true : st === 'retired' ? l.retired : st === 'never' ? !l.retired && l.times_dealt === 0
+    return st === 'all' ? true : st === 'retired' ? l.retired : st === 'review' ? !l.retired && l.review : st === 'never' ? !l.retired && l.times_dealt === 0
          : st === 'dealt' ? !l.retired && l.times_dealt > 0 : st === 'hands' ? !l.retired && l.in_play > 0 : !l.retired;
   };
   ['libSearch','libTier','libEffect','libStatus'].forEach(id => $(id).addEventListener('input', () => renderLibrary()));
@@ -1434,20 +1434,24 @@
     const shown = libRows.filter(libFilter);
     $('libCount').textContent = libRows.length ? `Showing ${shown.length} of ${libRows.length} designs` : '';
     $('library').innerHTML = shown.map(l => tcgHTML({ ...l, status: l.retired ? 'retired' : '' }, `
-      <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b>${l.max_copies ? ` / ${l.max_copies}` : ''} in hands${l.max_copies && l.in_play >= l.max_copies ? ' · <span class="tag lock">capped</span>' : ''}${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
+      <div class="lib-meta">Dealt <b>${l.times_dealt}</b>× · <b>${l.in_play}</b>${l.max_copies ? ` / ${l.max_copies}` : ''} in hands${l.max_copies && l.in_play >= l.max_copies ? ' · <span class="tag lock">capped</span>' : ''}${l.review ? ' · <span class="tag lock" title="drafted by the scorer; approve or edit it before it can be dealt">needs review</span>' : ''}${l.retired ? ' · <span class="tag wait">retired</span>' : ''}</div>
       <div class="row">
         ${l.retired ? '' : `<div class="f"><select class="lib-owner">${ownerOpts}</select></div><div><button class="btn lib-deal" data-id="${l.id}" style="padding:8px 12px">Deal</button></div>`}
         <div><button class="btn ghost lib-edit" data-id="${l.id}" style="padding:7px 10px">Edit</button></div>
+        ${l.review ? `<div><button class="btn lib-approve" data-id="${l.id}" style="padding:7px 10px">Approve</button></div>` : ''}
         <div><button class="btn ghost lib-retire" data-id="${l.id}" data-retired="${l.retired}" style="padding:7px 10px">${l.retired ? 'Restore' : 'Retire'}</button></div>
       </div>`)).join('')
       || `<div class="empty" style="grid-column:1/-1">${libRows.length ? 'No designs match those filters.' : 'The library is empty. Design a card below — it lands here and can be dealt every season after.'}</div>`;
     fitCards($('library'));
   }
   $('library').addEventListener('click', async e => {
-    const deal = e.target.closest('.lib-deal'), edit = e.target.closest('.lib-edit'), ret = e.target.closest('.lib-retire');
-    if (!deal && !edit && !ret) return;
+    const deal = e.target.closest('.lib-deal'), edit = e.target.closest('.lib-edit'), ret = e.target.closest('.lib-retire'), ok = e.target.closest('.lib-approve');
+    if (!deal && !edit && !ret && !ok) return;
     try {
-      if (deal) {
+      if (ok) {
+        await rpc('admin_review_library_card', { p_admin_pin: apin(), p_id: Number(ok.dataset.id) });
+        msg('libMsg', 'Approved — it can be dealt and can turn up in packs now.', 'ok'); await loadLibrary();
+      } else if (deal) {
         const owner = deal.closest('.cardwrap').querySelector('.lib-owner').value;
         await rpc('admin_deal_from_library', { p_admin_pin: apin(), p_library_id: Number(deal.dataset.id), p_owner: owner });
         msg('libMsg', `Dealt to ${owner}.`, 'ok'); await Promise.all([loadLibrary(), loadAdminCards()]);
