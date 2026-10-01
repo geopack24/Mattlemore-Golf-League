@@ -232,10 +232,10 @@
      type bar interior y 55.0–59.9%, text panel y 61.5–89%, collector strip y 90.5–95.4%. Open the site with ?zones=1 to see the boxes. */
   .mc .mc-title{left:10.2%;top:4.7%;width:66%;height:6.6%;font-size:6.2cqw;letter-spacing:.12cqw;padding:0 3cqw 0 2cqw}
   /* the type bar is a blade: full-height dark interior x 11.5–46%, tapering to a point by ~57% — the box stops where the taper starts (George, Sep 22) */
-  .mc .mc-type{left:12.5%;top:54.8%;width:42.5%;height:4.6%;text-transform:uppercase;font-size:3.9cqw;letter-spacing:.4cqw;padding:0 2cqw 0 2cqw}
+  .mc .mc-type{left:13%;top:54.8%;width:36%;height:4.6%;text-transform:uppercase;font-size:3.9cqw;letter-spacing:.4cqw;padding:0 2cqw 0 2cqw}
   .zones .mc>*:not(.mc-frame):not(.holo){outline:1px dashed rgba(0,255,255,.9);outline-offset:-1px;background-color:rgba(0,255,255,.12)}
   /* tee cost: one golf tee per tee of cost, sitting in the title bar's top-right circle (≈ x 80.5–95%, y 3.6–13.2%) over the crown */
-  .mc .mc-cost{left:80.5%;top:3.6%;width:14.5%;height:9.6%;display:flex;align-items:center;justify-content:center;gap:.5cqw;
+  .mc .mc-cost{left:81.8%;top:4.4%;width:12%;height:8%;display:flex;align-items:center;justify-content:center;gap:.5cqw;
     background:radial-gradient(circle at 50% 50%,rgba(0,0,0,.78) 0 52%,rgba(0,0,0,0) 60%)}   /* dark disc so the tees read over the painted crown */
   .mc .mc-cost svg{height:58%;width:auto;fill:#fff;filter:drop-shadow(0 .25cqw .4cqw rgba(0,0,0,.95)) drop-shadow(0 0 .3cqw rgba(0,0,0,.9))}
   .mc .mc-cost[data-n="2"] svg{height:52%} .mc .mc-cost[data-n="3"] svg{height:46%} .mc .mc-cost[data-n="3"]{gap:.3cqw}
@@ -732,7 +732,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-09-30-01';
+  const BUILD = '2026-10-01-01';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
