@@ -112,7 +112,7 @@ alter table cards        add column if not exists exempt_limit boolean not null 
 alter table card_library add column if not exists cost int not null default 0 check (cost between 0 and 3);
 alter table card_library add column if not exists max_copies int check (max_copies is null or max_copies >= 1);   -- cap on copies held at once (null = unlimited); RULES.md 18
 alter table tournaments add column if not exists is_major boolean not null default false;
-alter table card_library add column if not exists review boolean not null default false;   -- drafted by the scorer, not yet reviewed by the commissioner: shown in the library, never dealt
+alter table tournaments add column if not exists tags text[] not null default '{}';          -- free-form week tags cards can require, e.g. 'nantz' = Jim Nantz on the CBS call (RULES.md 20)alter table card_library add column if not exists review boolean not null default false;   -- drafted by the scorer, not yet reviewed by the commissioner: shown in the library, never dealt
 create table if not exists backups (             -- daily in-database snapshots of everything (see _export_all); the commissioner can also download one
   id        serial primary key,
   taken_at  timestamptz not null default now(),
@@ -364,9 +364,9 @@ $$;
 drop function if exists list_tournaments(int);   -- return type changed (is_major) — must be dropped before the create below
 create or replace function list_tournaments(p_season int default null)
 returns table (id int, name text, start_date date, lock_at timestamptz,
-               prize_pool numeric, multiplier numeric, locked boolean, season int, is_major boolean)
+               prize_pool numeric, multiplier numeric, locked boolean, season int, is_major boolean, tags text[])
 language sql stable security definer set search_path = public, extensions as $$
-  select id, name, start_date, lock_at, prize_pool, multiplier, now() >= lock_at, season, is_major
+  select id, name, start_date, lock_at, prize_pool, multiplier, now() >= lock_at, season, is_major, tags
     from tournaments
    where season = coalesce(p_season, current_season())
    order by sort_order;
@@ -387,6 +387,7 @@ $$;
 -- (drop first: these return types grew a note column in Sep 2026)
 drop function if exists tournament_board(int);
 drop function if exists admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric);
+drop function if exists admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric, boolean);
 drop function if exists season_picks(int);
 drop function if exists my_picks(text, text, int);
 drop function if exists tournament_cards(int);
@@ -869,6 +870,10 @@ begin
   if coalesce((v_c.params->>'major_only')::boolean, false) and not v_t.is_major then
     raise exception '% can only be played at a major (the Masters, PGA Championship, U.S. Open, The Open — or THE PLAYERS, which counts as one)', v_c.name;
   end if;
+  if coalesce(v_c.params->>'requires_tag', '') <> '' and not (v_t.tags @> array[v_c.params->>'requires_tag']) then
+    raise exception '% can only be played in %', v_c.name,
+      case v_c.params->>'requires_tag' when 'nantz' then 'a week Jim Nantz is on the call (the commissioner marks those under Schedule)' else 'a week tagged "' || (v_c.params->>'requires_tag') || '"' end;
+  end if;
 
   v_live := now() >= v_t.lock_at;
   if v_live then
@@ -1031,15 +1036,17 @@ end $$;
 
 create or replace function admin_upsert_tournament(p_admin_pin text, p_season int, p_sort_order int, p_name text,
                                                    p_start_date date, p_lock_at timestamptz,
-                                                   p_prize_pool numeric, p_multiplier numeric, p_is_major boolean default false)
+                                                   p_prize_pool numeric, p_multiplier numeric, p_is_major boolean default false,
+                                                   p_tags text[] default null)
 returns void language plpgsql security definer set search_path = public, extensions as $$
 begin
   perform _check_admin(p_admin_pin);
-  insert into tournaments (season, sort_order, name, start_date, lock_at, prize_pool, multiplier, is_major)
-  values (p_season, p_sort_order, trim(p_name), p_start_date, p_lock_at, p_prize_pool, p_multiplier, coalesce(p_is_major, false))
+  insert into tournaments (season, sort_order, name, start_date, lock_at, prize_pool, multiplier, is_major, tags)
+  values (p_season, p_sort_order, trim(p_name), p_start_date, p_lock_at, p_prize_pool, p_multiplier, coalesce(p_is_major, false), coalesce(p_tags, '{}'))
   on conflict (season, name) do update
      set sort_order = excluded.sort_order, start_date = excluded.start_date, lock_at = excluded.lock_at,
-         prize_pool = excluded.prize_pool, multiplier = excluded.multiplier, is_major = excluded.is_major;
+         prize_pool = excluded.prize_pool, multiplier = excluded.multiplier, is_major = excluded.is_major,
+         tags = coalesce(p_tags, tournaments.tags);
 end $$;
 
 create or replace function admin_delete_tournament(p_admin_pin text, p_tournament_id int)
@@ -1391,7 +1398,7 @@ grant execute on function
   standings(int), season_picks(int), my_picks(text, text, int), submit_pick(text, text, int, text),
   change_pin(text, text, text), admin_set_owner(text, text, text, boolean),
   admin_set_winnings(text, int, text, numeric, numeric, text),
-  admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric, boolean),
+  admin_upsert_tournament(text, int, int, text, date, timestamptz, numeric, numeric, boolean, text[]),
   admin_delete_tournament(text, int), admin_set_admin_pin(text, text), admin_set_season(text, int),
   list_champions(), admin_set_champion(text, int, text, text, numeric, text), admin_delete_champion(text, int)
 to anon, authenticated;

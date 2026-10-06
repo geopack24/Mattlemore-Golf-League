@@ -52,3 +52,8 @@ The commissioner's rulings, in the order they were made. Every rule here is enfo
 19. For **all card purposes**, the majors are the Masters, the PGA Championship, the U.S. Open, The Open Championship
     **and THE PLAYERS Championship**. Any card that refers to majors (for example one marked "can only be played at a
     major") treats THE PLAYERS as a major. The commissioner can flag or unflag any tournament under Schedule.
+
+## Broadcast weeks *(Oct 6 2026)*
+20. Some cards can only be played in a week **Jim Nantz is on the CBS call** (for example *Jim Nantz, Mythic Broadcaster*).
+    Which weeks those are is set by the commissioner under Schedule ("Jim Nantz on the call"), from the published TV
+    schedule, and can be corrected during the season if he skips a week. The site refuses the card on any other week.

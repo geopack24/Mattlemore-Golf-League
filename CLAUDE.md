@@ -68,6 +68,9 @@ George's process: he designs every card as **custom** (the Effect select is hidd
 ## Backups (Sep 23 2026)
 Supabase free tier has no automatic backups, so: (1) `_export_all()` builds one JSON of owners (no PIN hashes), tournaments, card_library (with art data URLs), cards, packs, picks, champions, non-secret settings; (2) pg_cron `backup-daily` (08:30 UTC) → `snapshot_backup()` stores it in the `backups` table, keeping the last 21 (protects against mistakes, not project loss); (3) Commissioner → Settings → **Download backup** (`admin_export`) saves `mattlemore-backup-YYYY-MM-DD.json` to George's PC, status line from `admin_backup_info`; (4) I also commit an offsite copy to `backups/backup-YYYY-MM-DD.json` in the repo — refresh it after each big batch of cards (`select _export_all()::text` via the Management API; ~4 MB with art). Restore: `admin_import_library(pin, export.card_library)` upserts designs by id; other tables can be restored by SQL from the same file.
 
+## Week tags (Oct 6 2026, RULES.md 20)
+`tournaments.tags text[]` — free-form tags a card can require via `params.requires_tag` (designer "Only playable in" select: any / majors / Jim Nantz weeks). Only tag so far: `nantz` (Schedule checkbox "Jim Nantz on the call (CBS)"). `play_card` refuses weeks lacking the tag, My Cards offers only tagged weeks, This Week shows a "Nantz" tag. Pre-marked for 2027 from the usual CBS slate (Pebble, Phoenix, Genesis, Masters, Heritage, Zurich, Truist, PGA, Colonial, Memorial, Canadian, Travelers) — George confirms/corrects from the published TV schedule; there is no live data source for broadcasters. Motivated by his card *Jim Nantz, Mythic Broadcaster* (Instant, all players +15% earnings).
+
 ## Open questions for GP
 - Owner names live in sheet tabs not yet shared (add via Commissioner tab or `admin_set_owner`).
 - 2027 purses: seeded with 2026 values; update when the Tour publishes them (cosmetic only).
