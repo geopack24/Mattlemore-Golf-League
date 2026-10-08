@@ -236,10 +236,10 @@
   .zones .mc>*:not(.mc-frame):not(.holo){outline:1px dashed rgba(0,255,255,.9);outline-offset:-1px;background-color:rgba(0,255,255,.12)}
   /* tee cost: one golf tee per tee of cost, sitting in the title bar's top-right circle (≈ x 80.5–95%, y 3.6–13.2%) over the crown */
   /* the medallion is always covered by a dark disc (hides the painted crown); tees sit on it, a free card shows it empty */
-  .mc .mc-cost{left:81.3%;top:4.1%;width:13%;height:8.7%;display:flex;align-items:center;justify-content:center;gap:.5cqw;
+  .mc .mc-cost{left:81.3%;top:4.1%;width:13%;height:8.7%;display:flex;align-items:center;justify-content:center;gap:.6cqw;padding-top:.35cqw;box-sizing:border-box;
     background:radial-gradient(circle at 50% 42%,#1c1814 0,#0a0806 46%,rgba(10,8,6,.85) 50%,rgba(0,0,0,0) 54%)}
-  .mc .mc-cost svg{height:58%;width:auto;fill:#fff;filter:drop-shadow(0 .25cqw .4cqw rgba(0,0,0,.95)) drop-shadow(0 0 .3cqw rgba(0,0,0,.9))}
-  .mc .mc-cost[data-n="2"] svg{height:52%} .mc .mc-cost[data-n="3"] svg{height:46%} .mc .mc-cost[data-n="3"]{gap:.3cqw}
+  .mc .mc-cost svg{height:54%;width:auto;fill:#fff;filter:drop-shadow(0 .25cqw .4cqw rgba(0,0,0,.95)) drop-shadow(0 0 .3cqw rgba(0,0,0,.9))}
+  .mc .mc-cost[data-n="2"] svg{height:50%} .mc .mc-cost[data-n="3"] svg{height:44%} .mc .mc-cost[data-n="3"]{gap:.35cqw}
   .mc.tier-legendary .mc-cost svg,.mc.tier-mythic .mc-cost svg{fill:#ffe08a}
   .mc .mc-text{left:11.2%;top:62.4%;width:79%;height:25.6%;overflow:hidden;color:var(--ink);font-size:4.6cqw;line-height:1.22;font-weight:500;padding:.4cqw .8cqw;white-space:normal;overflow-wrap:anywhere}
   .mc .mc-text p{margin:0}
@@ -389,7 +389,7 @@
 </head>
 <body>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-  <symbol id="tee" viewBox="0 0 24 40"><path d="M1 3q11-4 22 0l-3.5 8.5h-15z"/><path d="M8.6 11.5h6.8L13.4 38h-2.8z"/></symbol>
+  <symbol id="tee" viewBox="0 0 24 34"><path d="M1 3q11-4 22 0l-3.5 8.5h-15z"/><path d="M8.6 11.5h6.8L13.6 32h-3.2z"/></symbol>
   <symbol id="stag" viewBox="0 0 200 200">
     <defs>
       <linearGradient id="stagFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#d9cff5" stop-opacity=".9"/></linearGradient>
@@ -734,7 +734,7 @@
 (() => {
   // Bump on every push. GitHub Pages caches for 10 minutes; on load we peek at the live
   // copy and hop to a cache-busted URL if a newer build is out, so nobody runs stale code.
-  const BUILD = '2026-10-08-01';
+  const BUILD = '2026-10-08-02';
   fetch(location.pathname + '?cb=' + Date.now(), { cache: 'no-store' }).then(r => r.text()).then(html => {
     const m = html.match(/const BUILD = '([^']+)'/);
     // a timestamp rides along so a CDN edge that cached ?v=<build> a moment too early can't hand back the stale copy again
@@ -790,7 +790,7 @@
   const TIERS = { common: 'Common', rare: 'Rare', legendary: 'Legendary', mythic: 'Mythic' };
   const tierTag = t => `<span class="tag tier-${TIERS[t] ? t : 'common'}">${TIERS[t] || 'Common'}</span>`;
   const costTag = n => { n = Number(n) || 0; return `<span class="tag ${n ? 'lock' : 'open'}" title="tees needed to play it (3 per tournament)">${n ? n + (n === 1 ? ' tee' : ' tees') : 'free'}</span>`; };
-  const costPips = n => { n = Number(n) || 0; return `<div class="mc-cost" data-n="${n}" title="${n ? n + ' tee' + (n === 1 ? '' : 's') + ' to play' : 'free to play'}">${'<svg viewBox="0 0 24 40" aria-hidden="true"><use href="#tee"/></svg>'.repeat(n)}</div>`; };
+  const costPips = n => { n = Number(n) || 0; return `<div class="mc-cost" data-n="${n}" title="${n ? n + ' tee' + (n === 1 ? '' : 's') + ' to play' : 'free to play'}">${'<svg viewBox="0 0 24 34" aria-hidden="true"><use href="#tee"/></svg>'.repeat(n)}</div>`; };
   // Card art may be a still (JPEG/PNG data URL) or animated (MP4/WebM data URL): video plays muted on a loop, no controls.
   const isVideo = src => /^data:video\//.test(src || '') || /\.(mp4|webm)(\?|$)/i.test(src || '');
   // params._art = {x, y, s}: focal point (fractions) + zoom, set by dragging/zooming in the designer. Still images get the
